@@ -1,3 +1,4 @@
+using CofferOS.Api.BackgroundServices;
 using CofferOS.Api.Endpoints;
 using CofferOS.Application;
 using CofferOS.Infrastructure;
@@ -19,6 +20,8 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddBitcoinCoreIntegration(builder.Configuration);
 builder.Services.AddElectrumServerIntegration(builder.Configuration);
+
+builder.Services.AddHostedService<ElectrumBlockListenerHostedService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

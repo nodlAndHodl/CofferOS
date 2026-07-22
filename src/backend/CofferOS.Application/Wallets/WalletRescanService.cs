@@ -40,12 +40,27 @@ public sealed class WalletRescanService
         var rawDescriptors = wallet.Descriptors.Select(d => d.Raw).ToList();
         var descriptorsWithId = wallet.Descriptors.Select(d => (d.Id, d.Raw)).ToList();
 
-        var nodeUtxos = await _utxoProvider.ScanUtxoSetAsync(rawDescriptors, cancellationToken);
         var historyProvider = _historyProviders.FirstOrDefault();
+        WalletHistoryScan? history = null;
+        IReadOnlyList<NodeUtxo> nodeUtxos;
+
+        if (historyProvider is not null)
+        {
+            history = await historyProvider.GetWalletHistoryAsync(descriptorsWithId, cancellationToken);
+            nodeUtxos = history.Utxos;
+        }
+        else
+        {
+            nodeUtxos = await _utxoProvider.ScanUtxoSetAsync(rawDescriptors, cancellationToken);
+        }
+
+        var historyTip = historyProvider is not null ? await historyProvider.GetTipHeightAsync(cancellationToken) : null;
 
         var nodeProvider = _nodeProviders.FirstOrDefault();
-        var blockchainInfo = nodeProvider is not null ? await nodeProvider.GetBlockchainInfoAsync(cancellationToken) : null;
-        var currentHeight = blockchainInfo?.Blocks;
+        var blockchainInfo = historyTip is null && nodeProvider is not null
+            ? await nodeProvider.GetBlockchainInfoAsync(cancellationToken)
+            : null;
+        var currentHeight = historyTip ?? blockchainInfo?.Blocks;
 
         int ComputeConfirmations(long? height)
         {
@@ -69,10 +84,8 @@ public sealed class WalletRescanService
 
         await _wallets.ReplaceUtxosAsync(walletId, utxos, cancellationToken);
 
-        if (historyProvider is not null)
+        if (history is not null)
         {
-            var history = await historyProvider.GetWalletHistoryAsync(descriptorsWithId, cancellationToken);
-
             var transactions = history.Transactions
                 .Select(t => new WalletTransaction(
                     walletId,
@@ -86,11 +99,15 @@ public sealed class WalletRescanService
                     t.Timestamp))
                 .ToList();
 
+            static long SortKey(long height) => height > 0 ? height : long.MaxValue;
             var historyByAddress = history.AddressHistory
                 .GroupBy(h => h.Address)
                 .ToDictionary(
                     g => g.Key,
-                    g => (Count: g.Count(), First: g.OrderBy(x => x.Height).First().TxId, Last: g.OrderByDescending(x => x.Height).First().TxId));
+                    g => (
+                        Count: g.Count(),
+                        First: g.OrderBy(x => SortKey(x.Height)).First().TxId,
+                        Last: g.OrderByDescending(x => SortKey(x.Height)).First().TxId));
 
             var satsByAddress = utxos
                 .Where(u => !u.IsSpent)

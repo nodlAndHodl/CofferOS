@@ -38,17 +38,9 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         IReadOnlyCollection<string> descriptors,
         CancellationToken cancellationToken = default)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_options.TimeoutSeconds));
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
         var token = cts.Token;
-
-        var scripthashes = new List<(string Scripthash, DerivedAddress Address)>();
-        foreach (var raw in descriptors)
-        {
-            var (parsed, network) = ParseDescriptor(raw);
-            var receive = _parser.Derive(parsed, network, false, 0, _options.AddressScanCount);
-            var change = _parser.Derive(parsed, network, true, 0, _options.AddressScanCount);
-            scripthashes.AddRange(receive.Concat(change).Select(a => (ToScripthash(a.ScriptPubKeyHex), a)));
-        }
 
         var results = new List<NodeUtxo>();
 
@@ -66,13 +58,18 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         _logger.LogInformation("Negotiating Electrum protocol version...");
         await HandshakeAsync(writer, reader, token);
 
+        // Gap-limit discovery: only addresses that appear in history can hold UTXOs.
+        var discovery = await DiscoverAsync(writer, reader, descriptors.Select(d => (Guid.Empty, d)).ToList(), token);
+        var scripthashes = discovery.ActiveAddresses;
+        _logger.LogInformation("Gap-limit scan found {Count} active addresses; querying UTXOs...", scripthashes.Count);
+
         for (var i = 0; i < scripthashes.Count; i += _options.BatchSize)
         {
             var batch = scripthashes.Skip(i).Take(_options.BatchSize).ToList();
             var requests = batch.Select((s, idx) => new { jsonrpc = "2.0", method = "blockchain.scripthash.listunspent", @params = new[] { s.Scripthash }, id = i + idx + 1 }).ToList();
             var requestLine = JsonSerializer.Serialize(requests);
             _logger.LogInformation(
-                "Sending Electrum batch {BatchIndex} with {Count} scripthashes...",
+                "Sending Electrum listunspent batch {BatchIndex} with {Count} scripthashes...",
                 i / _options.BatchSize + 1,
                 batch.Count);
             await writer.WriteLineAsync(requestLine.AsMemory(), token);
@@ -116,37 +113,12 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
         CancellationToken cancellationToken = default)
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_options.TimeoutSeconds));
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(_options.TimeoutSeconds));
         var token = cts.Token;
 
-        var addressesByScriptPubKey = new Dictionary<string, DerivedAddress>();
-        var scripthashes = new List<(string Scripthash, DerivedAddress Address)>();
-        var derivedAddresses = new List<NodeAddressInfo>();
-        Network? nbNetwork = null;
-
-        foreach (var (descriptorId, raw) in descriptors)
-        {
-            var (parsed, network) = ParseDescriptor(raw);
-            nbNetwork ??= ToNetwork(network);
-            var receive = _parser.Derive(parsed, network, false, 0, _options.AddressScanCount);
-            var change = _parser.Derive(parsed, network, true, 0, _options.AddressScanCount);
-            foreach (var a in receive.Concat(change))
-            {
-                var key = a.ScriptPubKeyHex.ToLowerInvariant();
-                derivedAddresses.Add(new NodeAddressInfo(descriptorId, a.Index, a.IsChange, a.Address, a.ScriptPubKeyHex));
-                if (addressesByScriptPubKey.ContainsKey(key))
-                    continue;
-                addressesByScriptPubKey[key] = a;
-                scripthashes.Add((ToScripthash(a.ScriptPubKeyHex), a));
-            }
-        }
-
-        if (nbNetwork is null || scripthashes.Count == 0)
-            return new WalletHistoryScan(Array.Empty<NodeWalletTransaction>(), Array.Empty<AddressTxRef>(), derivedAddresses);
-
         _logger.LogInformation(
-            "Fetching Electrum history for {AddressCount} addresses from {Host}:{Port}...",
-            scripthashes.Count,
+            "Connecting to Electrum server {Host}:{Port} for gap-limit history scan...",
             _options.Host,
             _options.Port);
 
@@ -157,39 +129,15 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
 
         await HandshakeAsync(writer, reader, token);
 
-        var addressHistory = new List<AddressTxRef>();
-        var txIdToHeight = new Dictionary<string, long>();
+        var discovery = await DiscoverAsync(writer, reader, descriptors, token);
+        var nbNetwork = discovery.Network;
+        var derivedAddresses = discovery.DerivedAddresses;
+        var addressHistory = discovery.AddressHistory;
+        var txIdToHeight = discovery.TxIdToHeight;
+        var addressesByScriptPubKey = discovery.AddressesByScriptPubKey;
 
-        for (var i = 0; i < scripthashes.Count; i += _options.BatchSize)
-        {
-            var batch = scripthashes.Skip(i).Take(_options.BatchSize).ToList();
-            var requests = batch.Select((s, idx) => new { jsonrpc = "2.0", method = "blockchain.scripthash.get_history", @params = new[] { s.Scripthash }, id = i + idx + 1 }).ToList();
-            var requestLine = JsonSerializer.Serialize(requests);
-            _logger.LogInformation("Sending get_history batch {BatchIndex} with {Count} scripthashes...", i / _options.BatchSize + 1, batch.Count);
-            await writer.WriteLineAsync(requestLine.AsMemory(), token);
-
-            var responses = await ReadBatchAsync(reader, batch.Count, token);
-            foreach (var resp in responses)
-            {
-                var id = resp.GetProperty("id").GetInt32();
-                var batchIndex = id - i - 1;
-                if (batchIndex < 0 || batchIndex >= batch.Count)
-                    throw new InvalidOperationException($"Unexpected Electrum response id {id}.");
-
-                var address = batch[batchIndex].Address;
-
-                if (resp.TryGetProperty("error", out var err) && err.ValueKind != JsonValueKind.Null)
-                    throw new InvalidOperationException($"Electrum error: {err}");
-
-                foreach (var e in resp.GetProperty("result").EnumerateArray())
-                {
-                    var txId = e.GetProperty("tx_hash").GetString()!;
-                    var height = e.GetProperty("height").GetInt64();
-                    addressHistory.Add(new AddressTxRef(address.Address, txId, height));
-                    txIdToHeight[txId] = height;
-                }
-            }
-        }
+        if (nbNetwork is null || txIdToHeight.Count == 0)
+            return new WalletHistoryScan(Array.Empty<NodeWalletTransaction>(), addressHistory, derivedAddresses, Array.Empty<NodeUtxo>());
 
         _logger.LogInformation("Found {TxCount} unique transactions in history; fetching raw transactions...", txIdToHeight.Count);
         var txCache = await FetchTransactionsAsync(reader, writer, txIdToHeight.Keys.ToList(), nbNetwork, token);
@@ -206,6 +154,39 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
 
         var uniqueHeights = txIdToHeight.Values.Where(h => h > 0).Distinct().ToList();
         var blockTimestamps = await FetchBlockTimestampsAsync(reader, writer, uniqueHeights, token);
+
+        var spent = new HashSet<OutPoint>();
+        foreach (var tx in txCache.Values)
+            foreach (var input in tx.Inputs)
+                spent.Add(input.PrevOut);
+
+        var utxos = new List<NodeUtxo>();
+        foreach (var tx in txCache.Values)
+        {
+            var hash = tx.GetHash();
+            var txId = hash.ToString();
+            var height = txIdToHeight.TryGetValue(txId, out var h) ? h : 0;
+            long? heightValue = height > 0 ? height : null;
+
+            for (var vout = 0; vout < tx.Outputs.Count; vout++)
+            {
+                var output = tx.Outputs[vout];
+                var scriptHex = output.ScriptPubKey.ToHex().ToLowerInvariant();
+                if (!addressesByScriptPubKey.TryGetValue(scriptHex, out var derivedAddress))
+                    continue;
+
+                if (spent.Contains(new OutPoint(hash, (uint)vout)))
+                    continue;
+
+                utxos.Add(new NodeUtxo(
+                    txId,
+                    vout,
+                    output.Value.Satoshi,
+                    scriptHex,
+                    derivedAddress.Address,
+                    heightValue));
+            }
+        }
 
         var transactions = new List<NodeWalletTransaction>();
         foreach (var (txId, height) in txIdToHeight)
@@ -248,8 +229,144 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
                 timestamp));
         }
 
-        _logger.LogInformation("Electrum history complete; parsed {TransactionCount} transactions.", transactions.Count);
-        return new WalletHistoryScan(transactions, addressHistory, derivedAddresses);
+        _logger.LogInformation("Electrum history complete; parsed {TransactionCount} transactions and {UtxoCount} UTXOs.", transactions.Count, utxos.Count);
+        return new WalletHistoryScan(transactions, addressHistory, derivedAddresses, utxos);
+    }
+
+    /// <summary>
+    /// BIP-44 gap-limit discovery. Scans each descriptor's receive and change chains in
+    /// windows, stopping a chain once <see cref="ElectrumOptions.GapLimit"/> consecutive
+    /// unused addresses are seen (bounded by <see cref="ElectrumOptions.AddressScanCount"/>).
+    /// Reuses the fetched history so callers don't re-query it.
+    /// </summary>
+    private async Task<ScanDiscovery> DiscoverAsync(
+        StreamWriter writer,
+        StreamReader reader,
+        IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
+        CancellationToken token)
+    {
+        var discovery = new ScanDiscovery();
+        foreach (var (descriptorId, raw) in descriptors)
+        {
+            var (parsed, network) = ParseDescriptor(raw);
+            discovery.Network ??= ToNetwork(network);
+            await ScanChainAsync(writer, reader, discovery, parsed, network, descriptorId, change: false, token);
+            await ScanChainAsync(writer, reader, discovery, parsed, network, descriptorId, change: true, token);
+        }
+
+        return discovery;
+    }
+
+    private async Task ScanChainAsync(
+        StreamWriter writer,
+        StreamReader reader,
+        ScanDiscovery discovery,
+        ParsedDescriptor parsed,
+        BitcoinNetwork network,
+        Guid descriptorId,
+        bool change,
+        CancellationToken token)
+    {
+        var consecutiveUnused = 0;
+        var windowStart = 0;
+
+        while (windowStart < _options.AddressScanCount)
+        {
+            var count = Math.Min(_options.DiscoveryWindowSize, _options.AddressScanCount - windowStart);
+            var derived = _parser.Derive(parsed, network, change, windowStart, count);
+            if (derived.Count == 0)
+                break;
+
+            var scripthashes = derived.Select(a => ToScripthash(a.ScriptPubKeyHex)).ToList();
+            var history = await FetchHistoryWindowAsync(writer, reader, scripthashes, token);
+
+            var reachedGap = false;
+            for (var i = 0; i < derived.Count; i++)
+            {
+                var a = derived[i];
+                var key = a.ScriptPubKeyHex.ToLowerInvariant();
+                discovery.DerivedAddresses.Add(new NodeAddressInfo(descriptorId, a.Index, a.IsChange, a.Address, a.ScriptPubKeyHex));
+
+                history.TryGetValue(i, out var entries);
+                if (entries is { Count: > 0 })
+                {
+                    consecutiveUnused = 0;
+                    if (!discovery.AddressesByScriptPubKey.ContainsKey(key))
+                    {
+                        discovery.AddressesByScriptPubKey[key] = a;
+                        discovery.ActiveAddresses.Add((scripthashes[i], a));
+                    }
+
+                    foreach (var (txId, height) in entries)
+                    {
+                        discovery.AddressHistory.Add(new AddressTxRef(a.Address, txId, height));
+                        discovery.TxIdToHeight[txId] = height;
+                    }
+                }
+                else
+                {
+                    consecutiveUnused++;
+                    if (consecutiveUnused >= _options.GapLimit)
+                    {
+                        reachedGap = true;
+                        break;
+                    }
+                }
+            }
+
+            if (reachedGap || derived.Count < count)
+                break;
+
+            windowStart += count;
+        }
+    }
+
+    private async Task<Dictionary<int, List<(string TxId, long Height)>>> FetchHistoryWindowAsync(
+        StreamWriter writer,
+        StreamReader reader,
+        IReadOnlyList<string> scripthashes,
+        CancellationToken token)
+    {
+        var requests = scripthashes
+            .Select((s, idx) => new { jsonrpc = "2.0", method = "blockchain.scripthash.get_history", @params = new[] { s }, id = idx + 1 })
+            .ToList();
+        var requestLine = JsonSerializer.Serialize(requests);
+        await writer.WriteLineAsync(requestLine.AsMemory(), token);
+
+        var responses = await ReadBatchAsync(reader, scripthashes.Count, token);
+        var map = new Dictionary<int, List<(string, long)>>();
+        foreach (var resp in responses)
+        {
+            var id = resp.GetProperty("id").GetInt32();
+            var index = id - 1;
+            if (index < 0 || index >= scripthashes.Count)
+                throw new InvalidOperationException($"Unexpected Electrum response id {id}.");
+
+            if (resp.TryGetProperty("error", out var err) && err.ValueKind != JsonValueKind.Null)
+                throw new InvalidOperationException($"Electrum error: {err}");
+
+            var list = new List<(string, long)>();
+            foreach (var e in resp.GetProperty("result").EnumerateArray())
+            {
+                var txId = e.GetProperty("tx_hash").GetString()!;
+                var height = e.GetProperty("height").GetInt64();
+                list.Add((txId, height));
+            }
+
+            map[index] = list;
+        }
+
+        return map;
+    }
+
+    private sealed class ScanDiscovery
+    {
+        public List<(string Scripthash, DerivedAddress Address)> ActiveAddresses { get; } = new();
+        public List<AddressTxRef> AddressHistory { get; } = new();
+        public Dictionary<string, long> TxIdToHeight { get; } = new();
+        public List<NodeAddressInfo> DerivedAddresses { get; } = new();
+        public Dictionary<string, DerivedAddress> AddressesByScriptPubKey { get; } = new();
+        public Network? Network { get; set; }
     }
 
     private static Network ToNetwork(BitcoinNetwork network) => network switch
@@ -335,7 +452,7 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
 
     private (ParsedDescriptor Parsed, BitcoinNetwork Network) ParseDescriptor(string raw)
     {
-        foreach (var network in new[] { BitcoinNetwork.Mainnet, BitcoinNetwork.Testnet })
+        foreach (BitcoinNetwork network in Enum.GetValues<BitcoinNetwork>())
         {
             try
             {
@@ -363,7 +480,7 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
             return await BitcoinCoreRpcClient.ConnectSocks5Async(proxyHost, proxyPort, target, token);
         }
 
-        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        var socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp) { DualMode = true };
         try
         {
             await socket.ConnectAsync(target.Host, target.Port, token);
@@ -417,6 +534,123 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         return results;
     }
 
+    public async Task ListenForNewBlocksAsync(Func<long, string, CancellationToken, Task> onHeader, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Subscribing to Electrum new-block notifications at {Host}:{Port}...",
+            _options.Host,
+            _options.Port);
+
+        await using var stream = await ConnectAsync(cancellationToken);
+        var encoding = new UTF8Encoding(false);
+        using var writer = new StreamWriter(stream, encoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
+        using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+
+        await HandshakeAsync(writer, reader, cancellationToken);
+
+        const string subscribeRequest = "{\"jsonrpc\":\"2.0\",\"method\":\"blockchain.headers.subscribe\",\"params\":[],\"id\":1}\n";
+        await writer.WriteAsync(subscribeRequest.AsMemory(), cancellationToken);
+        await writer.FlushAsync(cancellationToken);
+
+        var initial = await reader.ReadLineAsync(cancellationToken)
+            ?? throw new IOException("No response to blockchain.headers.subscribe.");
+
+        using (var doc = JsonDocument.Parse(initial))
+        {
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var err) && err.ValueKind != JsonValueKind.Null)
+                throw new InvalidOperationException($"Electrum subscribe failed: {err}");
+        }
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (line is null)
+                throw new IOException("Electrum server closed the connection.");
+
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("method", out var methodProp) ||
+                methodProp.GetString() != "blockchain.headers.subscribe")
+            {
+                continue;
+            }
+
+            if (!root.TryGetProperty("params", out var paramsProp) || paramsProp.GetArrayLength() == 0)
+                continue;
+
+            var header = paramsProp[0];
+            var height = header.GetProperty("height").GetInt64();
+            var hex = header.GetProperty("hex").GetString() ?? string.Empty;
+            var blockHash = ComputeBlockHash(hex);
+
+            _logger.LogInformation(
+                "Electrum new block notification: height {Height}, hash {BlockHash}",
+                height,
+                blockHash);
+
+            await onHeader(height, blockHash, cancellationToken);
+        }
+    }
+
+    private static string ComputeBlockHash(string? headerHex)
+    {
+        if (string.IsNullOrEmpty(headerHex) || headerHex.Length < 160)
+            return string.Empty;
+
+        try
+        {
+            var bytes = Convert.FromHexString(headerHex.AsSpan(0, 160));
+            var hash = SHA256.HashData(bytes);
+            var hash2 = SHA256.HashData(hash);
+            Array.Reverse(hash2);
+            return Convert.ToHexString(hash2);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    public async Task<long?> GetTipHeightAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_options.TimeoutSeconds));
+            var token = cts.Token;
+            await using var stream = await ConnectAsync(token);
+            var encoding = new UTF8Encoding(false);
+            using var writer = new StreamWriter(stream, encoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
+            using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+            await HandshakeAsync(writer, reader, token);
+
+            const string request = "{\"jsonrpc\":\"2.0\",\"method\":\"blockchain.headers.subscribe\",\"params\":[],\"id\":1}\n";
+            await writer.WriteAsync(request.AsMemory(), token);
+            await writer.FlushAsync(token);
+
+            var line = await reader.ReadLineAsync(token) ?? throw new IOException("No response from Electrum server.");
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var err) && err.ValueKind != JsonValueKind.Null)
+                throw new InvalidOperationException($"Electrum error: {err}");
+
+            var result = root.GetProperty("result");
+            return result.TryGetProperty("height", out var h) && h.ValueKind == JsonValueKind.Number ? h.GetInt64() : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query Electrum tip height from {Host}:{Port}", _options.Host, _options.Port);
+            return null;
+        }
+    }
+
     public async Task<ElectrumStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -442,6 +676,10 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
             long? height = result.TryGetProperty("height", out var h) && h.ValueKind == JsonValueKind.Number ? h.GetInt64() : null;
 
             return new ElectrumStatusDto(true, "electrum", _options.Host, _options.Port, _options.Socks5Proxy, height, null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

@@ -46,8 +46,9 @@ public static class WalletEndpoints
             })
             .WithName("GetNodeStatus");
 
-        api.MapGet("/electrum/status", async (ElectrumServerProvider? electrum, CancellationToken ct) =>
+        api.MapGet("/electrum/status", async (IServiceProvider sp, CancellationToken ct) =>
             {
+                var electrum = sp.GetService<ElectrumServerProvider>();
                 if (electrum is null)
                     return Results.Ok(new ElectrumStatusDto(false, "electrum", string.Empty, 0, null, null, "Electrum server not configured"));
 

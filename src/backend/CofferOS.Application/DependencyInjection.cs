@@ -20,7 +20,9 @@ public static class DependencyInjection
 
         // Domain event handlers (each is resolved by the dispatcher as IDomainEventHandler<T>)
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, WalletImportedLoggingHandler>();
+        services.AddScoped<IDomainEventHandler<WalletImportedEvent>, RescanOnWalletImportedHandler>();
         services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, NewBlockLoggingHandler>();
+        services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, RescanOnNewBlockHandler>();
 
         return services;
     }

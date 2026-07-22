@@ -27,13 +27,22 @@ export function WalletDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    setError(null);
-    api
-      .getWallet(id)
-      .then(setWallet)
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
-      .finally(() => setLoading(false));
+    const walletId = id;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const initial = await api.getWallet(walletId);
+        setWallet(initial);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
   }, [id]);
 
   if (loading) return <Spinner />;

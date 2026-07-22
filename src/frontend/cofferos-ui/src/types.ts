@@ -133,3 +133,4 @@ export interface CreateNoteRequest {
 export interface UpdateNoteRequest {
   content: string;
 }
+
