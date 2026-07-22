@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using CofferOS.Application.Abstractions.Descriptors;
 using CofferOS.Application.Abstractions.Providers;
+using CofferOS.Application.Contracts;
 using CofferOS.Domain.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -414,5 +415,38 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         }
 
         return results;
+    }
+
+    public async Task<ElectrumStatusDto> GetStatusAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_options.TimeoutSeconds));
+            var token = cts.Token;
+            await using var stream = await ConnectAsync(token);
+            var encoding = new UTF8Encoding(false);
+            using var writer = new StreamWriter(stream, encoding, bufferSize: 1024, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
+            using var reader = new StreamReader(stream, encoding, detectEncodingFromByteOrderMarks: false, bufferSize: 1024, leaveOpen: true);
+            await HandshakeAsync(writer, reader, token);
+
+            const string heightRequest = "{\"jsonrpc\":\"2.0\",\"method\":\"blockchain.headers.subscribe\",\"params\":[],\"id\":1}\n";
+            await writer.WriteAsync(heightRequest.AsMemory(), token);
+            await writer.FlushAsync(token);
+
+            var line = await reader.ReadLineAsync(token) ?? throw new IOException("No response from Electrum server.");
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var err) && err.ValueKind != JsonValueKind.Null)
+                throw new InvalidOperationException($"Electrum error: {err}");
+            var result = root.GetProperty("result");
+            long? height = result.TryGetProperty("height", out var h) && h.ValueKind == JsonValueKind.Number ? h.GetInt64() : null;
+
+            return new ElectrumStatusDto(true, "electrum", _options.Host, _options.Port, _options.Socks5Proxy, height, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query Electrum server {Host}:{Port}", _options.Host, _options.Port);
+            return new ElectrumStatusDto(false, "electrum", _options.Host, _options.Port, _options.Socks5Proxy, null, ex.Message);
+        }
     }
 }

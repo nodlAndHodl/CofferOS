@@ -244,32 +244,88 @@ function Empty({ text }: { text: string }) {
 
 function AddressTable({ wallet }: { wallet: WalletDetail }) {
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(wallet.addresses.length / PAGE_SIZE);
+  const [filter, setFilter] = useState('');
+  const [sortKey, setSortKey] = useState<'index' | 'address' | 'uses' | 'current'>('index');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  useEffect(() => setPage(0), [wallet.addresses.length]);
+  useEffect(() => setPage(0), [wallet.addresses.length, filter, sortKey, sortDir]);
+
+  const filtered = wallet.addresses.filter(
+    (a) =>
+      a.value.toLowerCase().includes(filter.toLowerCase()) ||
+      String(a.derivationIndex).includes(filter) ||
+      (a.firstTxId ?? '').toLowerCase().includes(filter.toLowerCase()) ||
+      (a.lastTxId ?? '').toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'index':
+        cmp = a.derivationIndex - b.derivationIndex;
+        break;
+      case 'address':
+        cmp = a.value.localeCompare(b.value);
+        break;
+      case 'uses':
+        cmp = a.useCount - b.useCount;
+        break;
+      case 'current':
+        cmp = a.currentSats - b.currentSats;
+        break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const header = (key: typeof sortKey, label: string) => (
+    <th
+      className="cursor-pointer select-none px-4 py-3"
+      onClick={() => {
+        if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        else {
+          setSortKey(key);
+          setSortDir('asc');
+        }
+      }}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        {sortKey === key && <span className="text-[var(--color-coffer-orange)]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+      </span>
+    </th>
+  );
 
   if (wallet.addresses.length === 0) return <Empty text="No addresses derived yet." />;
-  const paged = wallet.addresses.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
     <div>
+      <div className="p-4">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter by address, index, or txid..."
+          className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
+        />
+      </div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
           <tr className="border-b border-[var(--color-coffer-border)]">
-            <th className="px-4 py-3">Index</th>
-            <th className="px-4 py-3">Chain</th>
-            <th className="px-4 py-3">Address</th>
+            {header('index', 'Index')}
+            {header('address', 'Address')}
             <th className="px-4 py-3">Used</th>
-            <th className="px-4 py-3">Tx Count</th>
+            {header('uses', 'Uses')}
             <th className="px-4 py-3">First Tx</th>
             <th className="px-4 py-3">Last Tx</th>
-            <th className="px-4 py-3">Current</th>
+            {header('current', 'Current')}
           </tr>
         </thead>
         <tbody>
           {paged.map((a) => (
             <tr key={a.id} className="border-b border-[var(--color-coffer-border)]/50">
               <td className="px-4 py-2">{a.derivationIndex}</td>
-              <td className="px-4 py-2">{a.isChange ? 'change' : 'receive'}</td>
               <td className="px-4 py-2 font-mono text-xs">{a.value}</td>
               <td className="px-4 py-2">{a.isUsed ? <Badge tone="orange">used</Badge> : <Badge>unused</Badge>}</td>
               <td className="px-4 py-2">{a.useCount}</td>
@@ -287,20 +343,74 @@ function AddressTable({ wallet }: { wallet: WalletDetail }) {
 
 function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved: () => void }) {
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(wallet.utxos.length / PAGE_SIZE);
+  const [filter, setFilter] = useState('');
+  const [sortKey, setSortKey] = useState<'outpoint' | 'value' | 'confirmations'>('outpoint');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  useEffect(() => setPage(0), [wallet.utxos.length]);
+  useEffect(() => setPage(0), [wallet.utxos.length, filter, sortKey, sortDir]);
+
+  const filtered = wallet.utxos.filter(
+    (u) =>
+      u.txId.toLowerCase().includes(filter.toLowerCase()) ||
+      `${u.txId}:${u.vout}`.toLowerCase().includes(filter.toLowerCase()) ||
+      (u.address ?? '').toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'outpoint':
+        cmp = a.txId.localeCompare(b.txId) || a.vout - b.vout;
+        break;
+      case 'value':
+        cmp = a.valueSats - b.valueSats;
+        break;
+      case 'confirmations':
+        cmp = a.confirmations - b.confirmations;
+        break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const header = (key: typeof sortKey, label: string) => (
+    <th
+      className="cursor-pointer select-none px-4 py-3"
+      onClick={() => {
+        if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        else {
+          setSortKey(key);
+          setSortDir('asc');
+        }
+      }}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        {sortKey === key && <span className="text-[var(--color-coffer-orange)]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+      </span>
+    </th>
+  );
 
   if (wallet.utxos.length === 0) return <Empty text="No UTXOs. Connect a node to discover coins." />;
-  const paged = wallet.utxos.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
     <div>
+      <div className="p-4">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter by outpoint or address..."
+          className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
+        />
+      </div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
           <tr className="border-b border-[var(--color-coffer-border)]">
-            <th className="px-4 py-3">Outpoint</th>
-            <th className="px-4 py-3">Value</th>
-            <th className="px-4 py-3">Confirmations</th>
+            {header('outpoint', 'Outpoint')}
+            {header('value', 'Value')}
+            {header('confirmations', 'Confirmations')}
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>
@@ -330,24 +440,90 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
 
 function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved: () => void }) {
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(wallet.transactions.length / PAGE_SIZE);
+  const [filter, setFilter] = useState('');
+  const [sortKey, setSortKey] = useState<'txid' | 'amount' | 'fee' | 'direction' | 'confirmations' | 'height' | 'time'>('time');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  useEffect(() => setPage(0), [wallet.transactions.length]);
+  useEffect(() => setPage(0), [wallet.transactions.length, filter, sortKey, sortDir]);
+
+  const filtered = wallet.transactions.filter(
+    (t) =>
+      t.txId.toLowerCase().includes(filter.toLowerCase()) ||
+      t.direction.toLowerCase().includes(filter.toLowerCase()) ||
+      String(t.blockHeight ?? '').includes(filter)
+  );
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'txid':
+        cmp = a.txId.localeCompare(b.txId);
+        break;
+      case 'amount':
+        cmp = a.netAmountSats - b.netAmountSats;
+        break;
+      case 'fee':
+        cmp = a.feeSats - b.feeSats;
+        break;
+      case 'direction':
+        cmp = a.direction.localeCompare(b.direction);
+        break;
+      case 'confirmations':
+        cmp = a.confirmations - b.confirmations;
+        break;
+      case 'height':
+        cmp = (a.blockHeight ?? 0) - (b.blockHeight ?? 0);
+        break;
+      case 'time':
+        cmp = new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime();
+        break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  const header = (key: typeof sortKey, label: string) => (
+    <th
+      className="cursor-pointer select-none px-4 py-3"
+      onClick={() => {
+        if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        else {
+          setSortKey(key);
+          setSortDir('asc');
+        }
+      }}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        {sortKey === key && <span className="text-[var(--color-coffer-orange)]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+      </span>
+    </th>
+  );
 
   if (wallet.transactions.length === 0) return <Empty text="No transactions. Connect a node to sync history." />;
-  const paged = wallet.transactions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   return (
     <div>
+      <div className="p-4">
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter by txid, direction, or block height..."
+          className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
+        />
+      </div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
           <tr className="border-b border-[var(--color-coffer-border)]">
-            <th className="px-4 py-3">Txid</th>
-            <th className="px-4 py-3">Amount</th>
-            <th className="px-4 py-3">Fee</th>
-            <th className="px-4 py-3">Direction</th>
-            <th className="px-4 py-3">Confirmations</th>
-            <th className="px-4 py-3">Block Height</th>
-            <th className="px-4 py-3">Time</th>
+            {header('txid', 'Txid')}
+            {header('amount', 'Amount')}
+            {header('fee', 'Fee')}
+            {header('direction', 'Direction')}
+            {header('confirmations', 'Confirmations')}
+            {header('height', 'Block Height')}
+            {header('time', 'Time')}
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>

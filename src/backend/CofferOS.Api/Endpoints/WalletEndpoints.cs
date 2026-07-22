@@ -1,9 +1,11 @@
 using CofferOS.Application.Abstractions.Persistence;
+using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
 using CofferOS.Application.Dashboard;
 using CofferOS.Application.Wallets;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Wallets;
+using CofferOS.Integrations.BitcoinCore;
 
 namespace CofferOS.Api.Endpoints;
 
@@ -20,6 +22,38 @@ public static class WalletEndpoints
         api.MapGet("/dashboard", async (DashboardService dashboard, CancellationToken ct) =>
                 Results.Ok(await dashboard.GetAsync(ct)))
             .WithName("GetDashboard");
+
+        api.MapGet("/node/status", async (IEnumerable<IBitcoinNodeProvider> nodeProviders, ILogger<object> logger, CancellationToken ct) =>
+            {
+                var provider = nodeProviders.FirstOrDefault();
+                if (provider is null)
+                    return Results.Ok(new NodeStatusDto(false, "none", null, null, null, "No node provider configured"));
+
+                try
+                {
+                    var connection = await provider.TestConnectionAsync(ct);
+                    if (!connection.Success)
+                        return Results.Ok(new NodeStatusDto(false, provider.ProviderId, null, null, null, connection.Error));
+
+                    var info = await provider.GetBlockchainInfoAsync(ct);
+                    return Results.Ok(new NodeStatusDto(true, provider.ProviderId, info.Chain, info.Blocks, info.VerificationProgress, null));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to query node provider {ProviderId}", provider.ProviderId);
+                    return Results.Ok(new NodeStatusDto(false, provider.ProviderId, null, null, null, ex.Message));
+                }
+            })
+            .WithName("GetNodeStatus");
+
+        api.MapGet("/electrum/status", async (ElectrumServerProvider? electrum, CancellationToken ct) =>
+            {
+                if (electrum is null)
+                    return Results.Ok(new ElectrumStatusDto(false, "electrum", string.Empty, 0, null, null, "Electrum server not configured"));
+
+                return Results.Ok(await electrum.GetStatusAsync(ct));
+            })
+            .WithName("GetElectrumStatus");
 
         var wallets = api.MapGroup("/wallets");
 

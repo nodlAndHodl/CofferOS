@@ -97,8 +97,16 @@ public sealed record DashboardDto(
     int WalletCount,
     BalanceDto TotalBalance,
     IReadOnlyList<WalletSummaryDto> Wallets,
-    IReadOnlyList<TransactionDto> RecentActivity,
-    NodeStatusDto Node);
+    IReadOnlyList<TransactionDto> RecentActivity);
+
+public sealed record ElectrumStatusDto(
+    bool Connected,
+    string ProviderId,
+    string Host,
+    int Port,
+    string? Socks5Proxy,
+    long? BlockHeight,
+    string? Error);
 
 public sealed record NodeStatusDto(
     bool Connected,

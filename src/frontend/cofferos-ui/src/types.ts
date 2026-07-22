@@ -99,12 +99,21 @@ export interface NodeStatus {
   error?: string | null;
 }
 
+export interface ElectrumStatus {
+  connected: boolean;
+  providerId: string;
+  host: string;
+  port: number;
+  socks5Proxy?: string | null;
+  blockHeight?: number | null;
+  error?: string | null;
+}
+
 export interface Dashboard {
   walletCount: number;
   totalBalance: Balance;
   wallets: WalletSummary[];
   recentActivity: Transaction[];
-  node: NodeStatus;
 }
 
 export interface ImportWalletRequest {

@@ -1,4 +1,4 @@
-import type { CreateNoteRequest, Dashboard, ImportWalletRequest, Note, UpdateNoteRequest, WalletDetail, WalletSummary } from '../types';
+import type { CreateNoteRequest, Dashboard, ElectrumStatus, ImportWalletRequest, NodeStatus, Note, UpdateNoteRequest, WalletDetail, WalletSummary } from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
@@ -44,4 +44,6 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteNote: (noteId: string) => request<void>(`/notes/${noteId}`, { method: 'DELETE' }),
+  getNodeStatus: () => request<NodeStatus>('/node/status'),
+  getElectrumStatus: () => request<ElectrumStatus>('/electrum/status'),
 };
