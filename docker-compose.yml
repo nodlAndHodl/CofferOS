@@ -1,0 +1,51 @@
+name: cofferos
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Data Source=/data/cofferos.db"
+      # Bitcoin Core integration (disabled by default; watch-only when enabled).
+      Integrations__BitcoinCore__Enabled: "${BITCOIN_CORE_ENABLED:-false}"
+      Integrations__BitcoinCore__RpcUrl: "${BITCOIN_CORE_RPC_URL:-http://127.0.0.1:8332}"
+      Integrations__BitcoinCore__RpcUser: "${BITCOIN_CORE_RPC_USER:-}"
+      Integrations__BitcoinCore__RpcPassword: "${BITCOIN_CORE_RPC_PASSWORD:-}"
+      Integrations__BitcoinCore__WalletName: "${BITCOIN_CORE_WALLET:-}"
+      Integrations__BitcoinCore__Socks5Proxy: "${BITCOIN_CORE_SOCKS5_PROXY:-}"
+      # Electrum server alternative for UTXO rescans.
+      Integrations__ElectrumServer__Enabled: "${ELECTRUM_ENABLED:-false}"
+      Integrations__ElectrumServer__Host: "${ELECTRUM_HOST:-your-electrum.onion}"
+      Integrations__ElectrumServer__Port: "${ELECTRUM_PORT:-50001}"
+      Integrations__ElectrumServer__Network: "${ELECTRUM_NETWORK:-Mainnet}"
+      Integrations__ElectrumServer__Socks5Proxy: "${ELECTRUM_SOCKS5_PROXY:-}"
+      Integrations__ElectrumServer__AddressScanCount: "${ELECTRUM_ADDRESS_SCAN_COUNT:-100}"
+      Integrations__ElectrumServer__BatchSize: "${ELECTRUM_BATCH_SIZE:-100}"
+      Integrations__ElectrumServer__TimeoutSeconds: "${ELECTRUM_TIMEOUT_SECONDS:-60}"
+    volumes:
+      - cofferos-data:/data
+    depends_on:
+      - tor
+    restart: unless-stopped
+
+  tor:
+    build:
+      context: .
+      dockerfile: docker/tor.Dockerfile
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "${COFFEROS_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  cofferos-data:
+    driver: local

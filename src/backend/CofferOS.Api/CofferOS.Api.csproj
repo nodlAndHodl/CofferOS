@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>CofferOS.Api</RootNamespace>
+    <AssemblyName>CofferOS.Api</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CofferOS.Application\CofferOS.Application.csproj" />
+    <ProjectReference Include="..\CofferOS.Infrastructure\CofferOS.Infrastructure.csproj" />
+    <ProjectReference Include="..\Integrations\CofferOS.Integrations.BitcoinCore\CofferOS.Integrations.BitcoinCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+  </ItemGroup>
+
+</Project>

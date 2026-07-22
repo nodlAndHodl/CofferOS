@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/backend/">
+    <Project Path="src/backend/CofferOS.Api/CofferOS.Api.csproj" />
+    <Project Path="src/backend/CofferOS.Application/CofferOS.Application.csproj" />
+    <Project Path="src/backend/CofferOS.Domain/CofferOS.Domain.csproj" />
+    <Project Path="src/backend/CofferOS.Infrastructure/CofferOS.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/backend/Integrations/">
+    <Project Path="src/backend/Integrations/CofferOS.Integrations.BitcoinCore/CofferOS.Integrations.BitcoinCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CofferOS.Infrastructure.Tests/CofferOS.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

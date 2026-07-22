@@ -1,0 +1,48 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+artifacts/
+
+# EF Core / SQLite runtime data
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.local
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.log
+
+# Docker Compose local overrides
+docker-compose.override.yml
+docker-compose.*.yml
+
+# Nested monorepo build artifacts
+**/out/
+**/publish/
+**/coverage/
+**/.eslintcache
+**/.*.cache
+**/TestResults/
+
+# IDE / editor
+.vscode/
+.fleet/
+*.swp
+*~

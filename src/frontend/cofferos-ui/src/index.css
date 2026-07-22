@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --color-coffer-bg: #0b0e14;
+  --color-coffer-panel: #131822;
+  --color-coffer-border: #1f2733;
+  --color-coffer-orange: #f7931a;
+  --color-coffer-muted: #8b97a7;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-coffer-bg);
+  color: #e6edf3;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

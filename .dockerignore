@@ -1,0 +1,15 @@
+**/bin
+**/obj
+**/node_modules
+**/dist
+**/.vite
+**/.vs
+**/.idea
+**/*.db
+**/*.db-shm
+**/*.db-wal
+data/
+.git
+.env
+.env.*
+!.env.example

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CofferOS.Domain</RootNamespace>
+    <AssemblyName>CofferOS.Domain</AssemblyName>
+  </PropertyGroup>
+
+</Project>
