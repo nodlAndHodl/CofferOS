@@ -78,6 +78,35 @@ public sealed record UpdateNoteRequest(string Content);
 
 public sealed record LabelDto(string Target, string Reference, string Text);
 
+public sealed record TagDto(string Target, string Reference, string Value);
+
+public sealed record CategoryDto(string Target, string Reference, string Name);
+
+public sealed record MetadataEntryDto(string Target, string Reference, string Key, string Value);
+
+/// <summary>The full user-defined metadata attached to a single object (usually a transaction).</summary>
+public sealed record ObjectMetadataDto(
+    string Target,
+    string Reference,
+    string? Label,
+    string? Category,
+    IReadOnlyList<string> Tags,
+    IReadOnlyDictionary<string, string> Metadata,
+    IReadOnlyList<NoteDto> Notes);
+
+/// <summary>
+/// Replaces the metadata for a target object. A null label/category clears it;
+/// the tag list and metadata dictionary fully replace what is stored. Notes are
+/// managed through the existing note endpoints.
+/// </summary>
+public sealed record UpdateMetadataRequest(
+    string Target,
+    string Reference,
+    string? Label,
+    string? Category,
+    IReadOnlyList<string>? Tags,
+    IReadOnlyDictionary<string, string>? Metadata);
+
 public sealed record WalletDetailDto(
     Guid Id,
     string Name,
@@ -91,13 +120,72 @@ public sealed record WalletDetailDto(
     IReadOnlyList<UtxoDto> Utxos,
     IReadOnlyList<LabelDto> Labels,
     IReadOnlyList<NoteDto> Notes,
+    IReadOnlyList<TagDto> Tags,
+    IReadOnlyList<CategoryDto> Categories,
+    IReadOnlyList<MetadataEntryDto> Metadata,
     DateTimeOffset CreatedAt);
+
+/// <summary>A single entry on a wallet timeline (stored annotation or generated from history).</summary>
+public sealed record TimelineEntryDto(
+    Guid? Id,
+    string Type,
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? Description,
+    string? Reference,
+    long? AmountSats,
+    long? RunningBalanceSats,
+    bool IsUserEvent);
+
+public sealed record WalletTimelineDto(
+    Guid WalletId,
+    string WalletName,
+    BalanceDto CurrentBalance,
+    IReadOnlyList<TimelineEntryDto> Entries);
+
+public sealed record CreateTimelineEventRequest(
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? Description,
+    string? Reference,
+    string? Type);
+
+public sealed record UpdateTimelineEventRequest(
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? Description,
+    string? Reference);
+
+public sealed record TimelineEventDto(
+    Guid Id,
+    string Type,
+    DateTimeOffset OccurredAt,
+    string Title,
+    string? Description,
+    string? Reference,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
+public sealed record RecentActivityItemDto(
+    string TxId,
+    long NetAmountSats,
+    long? BlockHeight,
+    DateTimeOffset? Timestamp,
+    string WalletName,
+    string? Label,
+    IReadOnlyList<string> Tags);
+
+public sealed record RecentActivityPageDto(
+    int Skip,
+    int Take,
+    int Total,
+    IReadOnlyList<RecentActivityItemDto> Items);
 
 public sealed record DashboardDto(
     int WalletCount,
     BalanceDto TotalBalance,
     IReadOnlyList<WalletSummaryDto> Wallets,
-    IReadOnlyList<TransactionDto> RecentActivity);
+    RecentActivityPageDto RecentActivity);
 
 public sealed record ElectrumStatusDto(
     bool Connected,

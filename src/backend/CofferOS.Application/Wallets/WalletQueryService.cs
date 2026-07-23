@@ -51,6 +51,9 @@ public sealed class WalletQueryService
         var utxos = await _readStore.GetUtxosAsync(walletId, cancellationToken);
         var labels = await _readStore.GetLabelsAsync(walletId, cancellationToken);
         var notes = await _readStore.GetNotesAsync(walletId, cancellationToken);
+        var tags = await _readStore.GetTagsAsync(walletId, cancellationToken);
+        var categories = await _readStore.GetCategoriesAsync(walletId, cancellationToken);
+        var metadata = await _readStore.GetMetadataAsync(walletId, cancellationToken);
 
         return new WalletDetailDto(
             wallet.Id,
@@ -73,6 +76,9 @@ public sealed class WalletQueryService
             utxos.Select(ToDto).ToList(),
             labels.Select(l => new LabelDto(l.Target.ToString(), l.Reference, l.Text)).ToList(),
             notes.Select(n => new NoteDto(n.Id, n.Target.ToString(), n.Reference, n.Content, n.CreatedAt, n.UpdatedAt)).ToList(),
+            tags.Select(t => new TagDto(t.Target.ToString(), t.Reference, t.Value)).ToList(),
+            categories.Select(c => new CategoryDto(c.Target.ToString(), c.Reference, c.Name)).ToList(),
+            metadata.Select(m => new MetadataEntryDto(m.Target.ToString(), m.Reference, m.Key, m.Value)).ToList(),
             wallet.CreatedAt);
     }
 

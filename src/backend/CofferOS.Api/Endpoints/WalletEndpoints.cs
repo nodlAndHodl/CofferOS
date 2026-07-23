@@ -23,6 +23,15 @@ public static class WalletEndpoints
                 Results.Ok(await dashboard.GetAsync(ct)))
             .WithName("GetDashboard");
 
+        api.MapGet("/dashboard/activity", async (int? page, int? pageSize, DashboardService dashboard, CancellationToken ct) =>
+            {
+                var pageNumber = Math.Max(page ?? 1, 1);
+                var pageSizeValue = Math.Clamp(pageSize ?? 10, 1, 25);
+                var skip = (pageNumber - 1) * pageSizeValue;
+                return Results.Ok(await dashboard.GetRecentActivityAsync(skip, pageSizeValue, ct));
+            })
+            .WithName("GetRecentActivity");
+
         api.MapGet("/node/status", async (IEnumerable<IBitcoinNodeProvider> nodeProviders, ILogger<object> logger, CancellationToken ct) =>
             {
                 var provider = nodeProviders.FirstOrDefault();
@@ -151,6 +160,9 @@ public static class WalletEndpoints
                 return Results.NoContent();
             })
             .WithName("DeleteNote");
+
+        app.MapMetadataEndpoints();
+        app.MapTimelineEndpoints();
 
         return app;
     }

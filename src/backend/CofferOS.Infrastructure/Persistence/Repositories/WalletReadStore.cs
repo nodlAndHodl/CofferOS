@@ -37,4 +37,31 @@ public sealed class WalletReadStore : IWalletReadStore
             .Where(n => n.WalletId == walletId)
             .OrderByDescending(n => n.UpdatedAt)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Tag>> GetTagsAsync(Guid walletId, CancellationToken cancellationToken = default) =>
+        await _db.Tags.AsNoTracking()
+            .Where(t => t.WalletId == walletId)
+            .OrderBy(t => t.Value)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Category>> GetCategoriesAsync(Guid walletId, CancellationToken cancellationToken = default) =>
+        await _db.Categories.AsNoTracking()
+            .Where(c => c.WalletId == walletId)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<MetadataEntry>> GetMetadataAsync(Guid walletId, CancellationToken cancellationToken = default) =>
+        await _db.MetadataEntries.AsNoTracking()
+            .Where(m => m.WalletId == walletId)
+            .OrderBy(m => m.Key)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<WalletTransaction>> GetRecentTransactionsAsync(int skip, int take, CancellationToken cancellationToken = default) =>
+        await _db.Transactions.AsNoTracking()
+            .OrderByDescending(t => t.Timestamp)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public async Task<int> GetRecentTransactionCountAsync(CancellationToken cancellationToken = default) =>
+        await _db.Transactions.AsNoTracking().CountAsync(cancellationToken);
 }

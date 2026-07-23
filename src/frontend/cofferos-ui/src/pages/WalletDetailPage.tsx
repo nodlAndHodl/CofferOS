@@ -3,10 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { api } from '../api/client';
 import type { Note, WalletDetail } from '../types';
+import { MetadataBadge } from '../components/TransactionMetadataModal';
+import { WalletTimeline } from '../components/WalletTimeline';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { formatBtc, formatDate, shorten } from '../lib/format';
 
-type Tab = 'addresses' | 'utxos' | 'transactions' | 'descriptors';
+type Tab = 'addresses' | 'utxos' | 'transactions' | 'descriptors' | 'timeline';
 
 const PAGE_SIZE = 20;
 
@@ -51,7 +53,7 @@ export function WalletDetailPage() {
       <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error ?? 'Wallet not found'}</div>
     );
 
-  const tabs: Tab[] = ['addresses', 'utxos', 'transactions', 'descriptors'];
+  const tabs: Tab[] = ['addresses', 'utxos', 'transactions', 'descriptors', 'timeline'];
 
   return (
     <div>
@@ -103,6 +105,7 @@ export function WalletDetailPage() {
         {tab === 'utxos' && <UtxoTable wallet={wallet} onNoteSaved={refresh} />}
         {tab === 'transactions' && <TransactionTable wallet={wallet} onNoteSaved={refresh} />}
         {tab === 'descriptors' && <DescriptorList wallet={wallet} />}
+        {tab === 'timeline' && <WalletTimeline walletId={wallet.id} />}
       </Card>
     </div>
   );
@@ -340,7 +343,9 @@ function AddressTable({ wallet }: { wallet: WalletDetail }) {
               <td className="px-4 py-2">{a.useCount}</td>
               <td className="px-4 py-2 font-mono text-xs">{a.firstTxId ? shorten(a.firstTxId) : '—'}</td>
               <td className="px-4 py-2 font-mono text-xs">{a.lastTxId ? shorten(a.lastTxId) : '—'}</td>
-              <td className="px-4 py-2">{formatBtc(a.currentSats)}</td>
+              <td className="px-4 py-2">
+                <span className={a.currentSats > 0 ? 'text-green-400' : ''}>{formatBtc(a.currentSats)}</span>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -427,9 +432,13 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
           {paged.map((u) => (
             <tr key={`${u.txId}:${u.vout}`} className="border-b border-[var(--color-coffer-border)]/50">
               <td className="px-4 py-2 font-mono text-xs">{shorten(u.txId)}:{u.vout}</td>
-              <td className="px-4 py-2">{formatBtc(u.valueSats)}</td>
-              <td className="px-4 py-2">{u.confirmations > 0 ? u.confirmations : 'mempool'}</td>
               <td className="px-4 py-2">
+                <span className="text-green-400">{formatBtc(u.valueSats)}</span>
+              </td>
+              <td className="px-4 py-2">
+                {u.confirmations > 0 ? u.confirmations : <Badge tone="default">mempool</Badge>}
+              </td>
+              <td className="px-4 py-2 flex items-center gap-2">
                 <NoteCell
                   walletId={wallet.id}
                   target="Utxo"
@@ -437,6 +446,7 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
                   notes={wallet.notes}
                   onSaved={onNoteSaved}
                 />
+                <MetadataBadge walletId={wallet.id} target="Utxo" reference={`${u.txId}:${u.vout}`} />
               </td>
             </tr>
           ))}
@@ -540,13 +550,21 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
           {paged.map((t) => (
             <tr key={t.txId} className="border-b border-[var(--color-coffer-border)]/50">
               <td className="px-4 py-2 font-mono text-xs">{shorten(t.txId)}</td>
-              <td className="px-4 py-2">{formatBtc(t.netAmountSats)}</td>
-              <td className="px-4 py-2">{formatBtc(t.feeSats)}</td>
-              <td className="px-4 py-2 capitalize">{t.direction}</td>
-              <td className="px-4 py-2">{t.confirmations > 0 ? t.confirmations : 'mempool'}</td>
+              <td className="px-4 py-2">
+                <span className={t.netAmountSats >= 0 ? 'text-green-400' : 'text-red-400'}>{formatBtc(t.netAmountSats)}</span>
+              </td>
+              <td className="px-4 py-2">
+                <span className="text-red-400">{formatBtc(t.feeSats)}</span>
+              </td>
+              <td className="px-4 py-2">
+                <Badge tone={t.direction.toLowerCase() === 'incoming' ? 'green' : 'red'}>{t.direction}</Badge>
+              </td>
+              <td className="px-4 py-2">
+                {t.confirmations > 0 ? t.confirmations : <Badge tone="default">mempool</Badge>}
+              </td>
               <td className="px-4 py-2">{t.blockHeight ?? '—'}</td>
               <td className="px-4 py-2">{formatDate(t.timestamp)}</td>
-              <td className="px-4 py-2">
+              <td className="px-4 py-2 flex items-center gap-2">
                 <NoteCell
                   walletId={wallet.id}
                   target="Transaction"
@@ -554,6 +572,7 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
                   notes={wallet.notes}
                   onSaved={onNoteSaved}
                 />
+                <MetadataBadge walletId={wallet.id} target="Transaction" reference={t.txId} />
               </td>
             </tr>
           ))}
@@ -566,18 +585,29 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
 
 function DescriptorList({ wallet }: { wallet: WalletDetail }) {
   return (
-    <div className="divide-y divide-[var(--color-coffer-border)]">
-      {wallet.descriptors.map((d) => (
-        <div key={d.id} className="p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <Badge tone="orange">{d.scriptType}</Badge>
-            <Badge>{d.source}</Badge>
-            {d.derivationPath && <span className="text-xs text-[var(--color-coffer-muted)]">{d.derivationPath}</span>}
-          </div>
-          <div className="break-all rounded-lg bg-[var(--color-coffer-bg)] p-3 font-mono text-xs">{d.raw}</div>
-          <div className="mt-2 text-xs text-[var(--color-coffer-muted)]">{d.addressCount} address(es) derived</div>
-        </div>
-      ))}
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
+          <tr className="border-b border-[var(--color-coffer-border)]">
+            <th className="px-4 py-3">Source</th>
+            <th className="px-4 py-3">Type</th>
+            <th className="px-4 py-3">Path</th>
+            <th className="px-4 py-3">Descriptor</th>
+            <th className="px-4 py-3">Addresses</th>
+          </tr>
+        </thead>
+        <tbody>
+          {wallet.descriptors.map((d) => (
+            <tr key={d.id} className="border-b border-[var(--color-coffer-border)]/50">
+              <td className="px-4 py-2"><Badge>{d.source}</Badge></td>
+              <td className="px-4 py-2"><Badge tone="orange">{d.scriptType}</Badge></td>
+              <td className="px-4 py-2 text-xs text-[var(--color-coffer-muted)]">{d.derivationPath ?? '—'}</td>
+              <td className="px-4 py-2 break-all font-mono text-xs">{d.raw}</td>
+              <td className="px-4 py-2">{d.addressCount}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -2,10 +2,45 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, Plus, Server, Trash2, Wallet as WalletIcon, Zap } from 'lucide-react';
 import { api } from '../api/client';
-import type { Dashboard, ElectrumStatus, NodeStatus } from '../types';
+import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { ImportWalletModal } from '../components/ImportWalletModal';
 import { formatBtc, formatDate, shorten } from '../lib/format';
+
+function normalizeActivity(raw: unknown): RecentActivityPage | null {
+  const page = raw as any;
+  if (!page) return null;
+
+  const normalizeItem = (t: any): RecentActivityItem => ({
+    txId: String(t.txId ?? ''),
+    netAmountSats: Number(t.netAmountSats ?? 0),
+    blockHeight: t.blockHeight ?? null,
+    timestamp: t.timestamp ?? null,
+    walletName: t.walletName ?? 'Unknown',
+    label: t.label ?? null,
+    tags: Array.isArray(t.tags) ? t.tags : [],
+  });
+
+  if (Array.isArray(page)) {
+    return {
+      skip: 0,
+      take: page.length,
+      total: page.length,
+      items: page.map(normalizeItem),
+    };
+  }
+
+  if (Array.isArray(page.items)) {
+    return {
+      skip: typeof page.skip === 'number' ? page.skip : 0,
+      take: typeof page.take === 'number' ? page.take : page.items.length,
+      total: typeof page.total === 'number' ? page.total : page.items.length,
+      items: page.items.map(normalizeItem),
+    };
+  }
+
+  return null;
+}
 
 export function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -16,11 +51,14 @@ export function DashboardPage() {
   const [electrumLoading, setElectrumLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<RecentActivityPage | null>(null);
 
   async function load() {
     try {
       setError(null);
-      setData(await api.getDashboard());
+      const d = await api.getDashboard();
+      setData(d);
+      setActivity(normalizeActivity(d.recentActivity));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -95,7 +133,22 @@ export function DashboardPage() {
               <Card className="relative p-4 transition hover:border-[var(--color-coffer-orange)]/50">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="font-semibold">{w.name}</span>
-                  <Badge tone="orange">{w.network}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge tone="orange">{w.network}</Badge>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (confirm(`Delete "${w.name}"? This cannot be undone.`)) {
+                          api.deleteWallet(w.id).then(load).catch((e) => setError(e instanceof Error ? e.message : 'Failed to delete wallet'));
+                        }
+                      }}
+                      className="rounded p-2 text-[var(--color-coffer-muted)] hover:text-red-400"
+                      aria-label="Delete wallet"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="text-xl font-bold">{formatBtc(w.balance.totalSats)}</div>
                 <div className="mt-2 flex items-center gap-3 text-xs text-[var(--color-coffer-muted)]">
@@ -103,19 +156,6 @@ export function DashboardPage() {
                   <span>{w.transactionCount} tx</span>
                   {w.watchOnly && <Badge tone="green">watch-only</Badge>}
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (confirm(`Delete "${w.name}"? This cannot be undone.`)) {
-                      api.deleteWallet(w.id).then(load).catch((e) => setError(e instanceof Error ? e.message : 'Failed to delete wallet'));
-                    }
-                  }}
-                  className="absolute right-2 top-2 rounded p-1 text-[var(--color-coffer-muted)] hover:text-red-400"
-                  aria-label="Delete wallet"
-                >
-                  <Trash2 size={16} />
-                </button>
               </Card>
             </Link>
           ))}
@@ -130,18 +170,84 @@ export function DashboardPage() {
 
       <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Recent activity</h2>
       <Card className="p-4">
-        {data && data.recentActivity.length > 0 ? (
-          <ul className="divide-y divide-[var(--color-coffer-border)]">
-            {data.recentActivity.map((t) => (
-              <li key={t.txId} className="flex items-center justify-between py-2 text-sm">
-                <span className="font-mono text-xs">{shorten(t.txId)}</span>
-                <span>
-                  {formatBtc(t.netAmountSats)} <span className="text-[var(--color-coffer-muted)]">{t.direction}</span>
-                </span>
-                <span className="text-[var(--color-coffer-muted)]">{formatDate(t.timestamp)}</span>
-              </li>
-            ))}
-          </ul>
+        {activity && activity.items.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
+                <tr className="border-b border-[var(--color-coffer-border)]">
+                  <th className="px-2 py-2">Transaction</th>
+                  <th className="px-2 py-2">Amount</th>
+                  <th className="px-2 py-2">Wallet</th>
+                  <th className="px-2 py-2">Label / Tags</th>
+                  <th className="px-2 py-2">Block</th>
+                  <th className="px-2 py-2">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activity.items.map((t) => (
+                  <tr key={t.txId} className="border-b border-[var(--color-coffer-border)]/50">
+                    <td className="px-2 py-2 font-mono text-xs">{shorten(t.txId)}</td>
+                    <td className="px-2 py-2">
+                      <span className={t.netAmountSats >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        {formatBtc(t.netAmountSats)}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <Badge tone="orange">{t.walletName}</Badge>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {t.label && <Badge tone="default">{t.label}</Badge>}
+                        {t.tags.map((tag) => (
+                          <Badge key={tag} tone="default">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2">{t.blockHeight ?? '—'}</td>
+                    <td className="px-2 py-2 text-[var(--color-coffer-muted)]">{formatDate(t.timestamp)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {activity.total > activity.take && (
+              <div className="mt-3 flex items-center justify-end gap-2 text-xs text-[var(--color-coffer-muted)]">
+                {(() => {
+                  const pageSize = activity.take;
+                  const currentPage = pageSize > 0 ? activity.skip / pageSize + 1 : 1;
+                  const totalPages = Math.ceil(activity.total / pageSize);
+                  function goToPage(p: number) {
+                    const next = Math.min(Math.max(p, 1), totalPages);
+                    api.getRecentActivity(next, pageSize)
+                      .then((page) => setActivity(normalizeActivity(page)))
+                      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load activity'));
+                  }
+                  return (
+                    <>
+                      <button
+                        disabled={currentPage <= 1}
+                        onClick={() => goToPage(currentPage - 1)}
+                        className="rounded border border-[var(--color-coffer-border)] px-2 py-1 disabled:opacity-40"
+                      >
+                        Previous
+                      </button>
+                      <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        disabled={currentPage >= totalPages}
+                        onClick={() => goToPage(currentPage + 1)}
+                        className="rounded border border-[var(--color-coffer-border)] px-2 py-1 disabled:opacity-40"
+                      >
+                        Next
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         ) : (
           <p className="py-4 text-center text-sm text-[var(--color-coffer-muted)]">
             No activity yet. Connect a node to sync transactions.

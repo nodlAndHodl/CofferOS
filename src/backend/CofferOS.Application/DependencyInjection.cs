@@ -16,6 +16,8 @@ public static class DependencyInjection
         services.AddScoped<WalletImportService>();
         services.AddScoped<WalletQueryService>();
         services.AddScoped<WalletRescanService>();
+        services.AddScoped<TransactionMetadataService>();
+        services.AddScoped<WalletTimelineService>();
         services.AddScoped<DashboardService>();
 
         // Domain event handlers (each is resolved by the dispatcher as IDomainEventHandler<T>)

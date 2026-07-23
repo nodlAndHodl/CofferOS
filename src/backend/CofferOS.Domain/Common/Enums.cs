@@ -48,3 +48,35 @@ public enum LabelTarget
     Utxo = 2,
     Wallet = 3
 }
+
+/// <summary>
+/// The source / kind of a wallet timeline event. On-chain transaction events are
+/// generated at query time; the remaining values cover user annotations and are
+/// reserved for future event sources (Lightning, nodes, multisig, migrations).
+/// </summary>
+public enum TimelineEventType
+{
+    /// <summary>Free-form user annotation ("Moved funds to cold storage").</summary>
+    Annotation = 0,
+
+    /// <summary>Generated from an incoming on-chain transaction.</summary>
+    TransactionReceived = 1,
+
+    /// <summary>Generated from an outgoing on-chain transaction.</summary>
+    TransactionSent = 2,
+
+    /// <summary>Generated when the wallet was imported into CofferOS.</summary>
+    WalletImported = 3,
+
+    /// <summary>Reserved: Lightning channel / payment events.</summary>
+    Lightning = 4,
+
+    /// <summary>Reserved: Bitcoin / Lightning node lifecycle events.</summary>
+    Node = 5,
+
+    /// <summary>Reserved: multisig setup / cosigner events.</summary>
+    Multisig = 6,
+
+    /// <summary>Reserved: wallet migration events (sweeps, descriptor rotations).</summary>
+    WalletMigration = 7
+}
