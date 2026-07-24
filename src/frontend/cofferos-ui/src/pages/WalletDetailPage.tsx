@@ -58,8 +58,8 @@ export function WalletDetailPage() {
 
   return (
     <div>
-      <Link to="/" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--color-coffer-muted)] hover:text-white">
-        <ArrowLeft size={16} /> Back to dashboard
+      <Link to="/wallets" className="mb-6 inline-flex items-center gap-2 text-sm text-[var(--color-coffer-muted)] hover:text-white">
+        <ArrowLeft size={16} /> Back to wallets
       </Link>
 
       <div className="mb-6 flex items-start justify-between">

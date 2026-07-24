@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Shield, Wallet } from 'lucide-react';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 border-r border-[var(--color-coffer-border)] bg-[var(--color-coffer-panel)] p-5 md:block">
-        <Link to="/" className="mb-8 flex items-center gap-2">
+        <NavLink to="/" className="mb-8 flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--color-coffer-orange)] text-black font-black">
             ₿
           </div>
@@ -14,15 +14,29 @@ export function Layout({ children }: { children: ReactNode }) {
             <div className="text-lg font-bold leading-none">CofferOS</div>
             <div className="text-xs text-[var(--color-coffer-muted)]">Treasury Intelligence</div>
           </div>
-        </Link>
+        </NavLink>
 
         <nav className="space-y-1 text-sm">
-          <Link to="/" className="flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white">
+          <NavLink
+            to="/"
+            className={({ isActive }: { isActive: boolean }) =>
+              isActive
+                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
+                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
+            }
+          >
             <LayoutDashboard size={18} /> Dashboard
-          </Link>
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)]/60">
+          </NavLink>
+          <NavLink
+            to="/wallets"
+            className={({ isActive }: { isActive: boolean }) =>
+              isActive
+                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
+                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
+            }
+          >
             <Wallet size={18} /> Wallets
-          </div>
+          </NavLink>
         </nav>
 
         <div className="mt-8 flex items-start gap-2 rounded-lg border border-[var(--color-coffer-border)] p-3 text-xs text-[var(--color-coffer-muted)]">

@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Activity, Plus, Server, Trash2, Wallet as WalletIcon, Zap } from 'lucide-react';
+import { Activity, Server, Wallet as WalletIcon, Zap } from 'lucide-react';
 import { api } from '../api/client';
 import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage } from '../types';
-import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
-import { ImportWalletModal } from '../components/ImportWalletModal';
+import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
 import { formatBtc, formatDate, shorten } from '../lib/format';
 import { getTagColorClass } from '../lib/tagColor';
@@ -51,7 +49,6 @@ export function DashboardPage() {
   const [nodeLoading, setNodeLoading] = useState(true);
   const [electrum, setElectrum] = useState<ElectrumStatus | null>(null);
   const [electrumLoading, setElectrumLoading] = useState(true);
-  const [showImport, setShowImport] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<RecentActivityPage | null>(null);
 
@@ -106,16 +103,9 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-[var(--color-coffer-muted)]">Your Bitcoin treasury at a glance</p>
-        </div>
-        <Button onClick={() => setShowImport(true)}>
-          <span className="flex items-center gap-2">
-            <Plus size={16} /> Import wallet
-          </span>
-        </Button>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-[var(--color-coffer-muted)]">Your Bitcoin treasury at a glance</p>
       </div>
 
       {error && <div className="mb-6 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
@@ -127,50 +117,7 @@ export function DashboardPage() {
         <ElectrumCard electrum={electrum} loading={electrumLoading} />
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Wallets</h2>
-      {data && data.wallets.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {data.wallets.map((w) => (
-            <Link key={w.id} to={`/wallets/${w.id}`}>
-              <Card className="relative p-4 transition hover:border-[var(--color-coffer-orange)]/50">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="font-semibold">{w.name}</span>
-                  <div className="flex items-center gap-2">
-                    <Badge tone="orange">{w.network}</Badge>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (confirm(`Delete "${w.name}"? This cannot be undone.`)) {
-                          api.deleteWallet(w.id).then(load).catch((e) => setError(e instanceof Error ? e.message : 'Failed to delete wallet'));
-                        }
-                      }}
-                      className="rounded p-2 text-[var(--color-coffer-muted)] hover:text-red-400"
-                      aria-label="Delete wallet"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-                <div className="text-xl font-bold">{formatBtc(w.balance.totalSats)}</div>
-                <div className="mt-2 flex items-center gap-3 text-xs text-[var(--color-coffer-muted)]">
-                  <span>{w.descriptorCount} descriptor(s)</span>
-                  <span>{w.transactionCount} tx</span>
-                  {w.watchOnly && <Badge tone="green">watch-only</Badge>}
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <Card className="p-10 text-center">
-          <WalletIcon className="mx-auto mb-3 text-[var(--color-coffer-muted)]" />
-          <p className="mb-4 text-[var(--color-coffer-muted)]">No wallets yet. Import an xpub or descriptor to get started.</p>
-          <Button onClick={() => setShowImport(true)}>Import your first wallet</Button>
-        </Card>
-      )}
-
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Recent activity</h2>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Recent activity</h2>
       <Card className="p-4">
         {activity && activity.items.length > 0 ? (
           <div className="overflow-x-auto">
@@ -264,7 +211,6 @@ export function DashboardPage() {
         )}
       </Card>
 
-      {showImport && <ImportWalletModal onClose={() => setShowImport(false)} onImported={load} />}
     </div>
   );
 }
