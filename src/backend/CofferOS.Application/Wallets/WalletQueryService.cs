@@ -49,6 +49,10 @@ public sealed class WalletQueryService
         var addresses = await _readStore.GetAddressesAsync(walletId, cancellationToken);
         var transactions = await _readStore.GetTransactionsAsync(walletId, cancellationToken);
         var utxos = await _readStore.GetUtxosAsync(walletId, cancellationToken);
+        var txTimestamps = transactions.ToDictionary(
+            t => t.TxId,
+            t => t.Timestamp,
+            StringComparer.OrdinalIgnoreCase);
         var labels = await _readStore.GetLabelsAsync(walletId, cancellationToken);
         var notes = await _readStore.GetNotesAsync(walletId, cancellationToken);
         var tags = await _readStore.GetTagsAsync(walletId, cancellationToken);
@@ -73,7 +77,7 @@ public sealed class WalletQueryService
                 d.Addresses.Count)).ToList(),
             addresses.Select(ToDto).ToList(),
             transactions.Select(ToDto).ToList(),
-            utxos.Select(ToDto).ToList(),
+            utxos.Select(u => ToDto(u, txTimestamps.GetValueOrDefault(u.TxId))).ToList(),
             labels.Select(l => new LabelDto(l.Target.ToString(), l.Reference, l.Text)).ToList(),
             notes.Select(n => new NoteDto(n.Id, n.Target.ToString(), n.Reference, n.Content, n.CreatedAt, n.UpdatedAt)).ToList(),
             tags.Select(t => new TagDto(t.Target.ToString(), t.Reference, t.Value)).ToList(),
@@ -102,6 +106,6 @@ public sealed class WalletQueryService
     private static TransactionDto ToDto(WalletTransaction t) =>
         new(t.TxId, t.NetAmountSats, t.FeeSats, t.Direction.ToString(), t.Confirmations, t.BlockHeight, t.Timestamp);
 
-    private static UtxoDto ToDto(Utxo u) =>
-        new(u.TxId, u.Vout, u.ValueSats, u.Address, u.Confirmations, u.IsSpent);
+    private static UtxoDto ToDto(Utxo u, DateTimeOffset? timestamp) =>
+        new(u.TxId, u.Vout, u.ValueSats, u.Address, u.Confirmations, timestamp, u.IsSpent);
 }

@@ -57,6 +57,7 @@ public sealed record UtxoDto(
     long ValueSats,
     string? Address,
     int Confirmations,
+    DateTimeOffset? Timestamp,
     bool IsSpent);
 
 public sealed record RescanResultDto(int UtxoCount, BalanceDto Balance);

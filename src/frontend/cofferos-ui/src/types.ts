@@ -56,6 +56,7 @@ export interface Utxo {
   valueSats: number;
   address?: string | null;
   confirmations: number;
+  timestamp?: string | null;
   isSpent: boolean;
 }
 

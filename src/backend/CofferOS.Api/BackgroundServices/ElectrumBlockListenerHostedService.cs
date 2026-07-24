@@ -3,6 +3,7 @@ using CofferOS.Domain.Common;
 using CofferOS.Domain.Events;
 using CofferOS.Integrations.BitcoinCore;
 using Microsoft.Extensions.Options;
+using System.IO;
 
 namespace CofferOS.Api.BackgroundServices;
 
@@ -56,17 +57,22 @@ public sealed class ElectrumBlockListenerHostedService : BackgroundService
             {
                 throw;
             }
+            catch (IOException ex)
+            {
+                _logger.LogWarning("Electrum server closed the connection; reconnecting in 15s... ({Message})", ex.Message);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Electrum block listener disconnected; reconnecting in 15s...");
-                try
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
         }
     }

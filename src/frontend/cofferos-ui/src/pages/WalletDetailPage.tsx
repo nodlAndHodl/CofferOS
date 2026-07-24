@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { api } from '../api/client';
-import type { Note, WalletDetail } from '../types';
+import type { Address, Note, WalletDetail } from '../types';
 import { WalletTimeline } from '../components/WalletTimeline';
 import { InlineMetadataEditor } from '../components/InlineMetadataEditor';
 import { Tooltip } from '../components/Tooltip';
@@ -256,14 +256,25 @@ function Empty({ text }: { text: string }) {
 }
 
 function AddressTable({ wallet }: { wallet: WalletDetail }) {
+  const receive = wallet.addresses.filter((a) => !a.isChange);
+  const change = wallet.addresses.filter((a) => a.isChange);
+  return (
+    <div>
+      <AddressSection title="Receive addresses" addresses={receive} />
+      <AddressSection title="Change addresses" addresses={change} />
+    </div>
+  );
+}
+
+function AddressSection({ title, addresses }: { title: string; addresses: Address[] }) {
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState('');
   const [sortKey, setSortKey] = useState<'index' | 'address' | 'uses' | 'current'>('index');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  useEffect(() => setPage(0), [wallet.addresses.length, filter, sortKey, sortDir]);
+  useEffect(() => setPage(0), [addresses.length, filter, sortKey, sortDir]);
 
-  const filtered = wallet.addresses.filter(
+  const filtered = addresses.filter(
     (a) =>
       a.value.toLowerCase().includes(filter.toLowerCase()) ||
       String(a.derivationIndex).includes(filter) ||
@@ -311,9 +322,10 @@ function AddressTable({ wallet }: { wallet: WalletDetail }) {
     </th>
   );
 
-  if (wallet.addresses.length === 0) return <Empty text="No addresses derived yet." />;
+  if (addresses.length === 0) return <Empty text={`No ${title.toLowerCase()} derived yet.`} />;
   return (
-    <div>
+    <div className="border-b border-[var(--color-coffer-border)]">
+      <h3 className="px-4 py-3 text-sm font-semibold uppercase text-[var(--color-coffer-muted)]">{title}</h3>
       <div className="p-4">
         <input
           type="text"
@@ -384,7 +396,7 @@ function AddressTable({ wallet }: { wallet: WalletDetail }) {
 function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved: () => void }) {
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState('');
-  const [sortKey, setSortKey] = useState<'outpoint' | 'value' | 'confirmations'>('outpoint');
+  const [sortKey, setSortKey] = useState<'outpoint' | 'address' | 'value' | 'confirmations' | 'date'>('outpoint');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [metaFilter, setMetaFilter] = useState('');
@@ -403,7 +415,8 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
     (u) =>
       (u.txId.toLowerCase().includes(filter.toLowerCase()) ||
         `${u.txId}:${u.vout}`.toLowerCase().includes(filter.toLowerCase()) ||
-        (u.address ?? '').toLowerCase().includes(filter.toLowerCase())) &&
+        (u.address ?? '').toLowerCase().includes(filter.toLowerCase()) ||
+        formatDate(u.timestamp).toLowerCase().includes(filter.toLowerCase())) &&
       matchesMetadata(`${u.txId}:${u.vout}`)
   );
 
@@ -413,11 +426,17 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
       case 'outpoint':
         cmp = a.txId.localeCompare(b.txId) || a.vout - b.vout;
         break;
+      case 'address':
+        cmp = (a.address ?? '').localeCompare(b.address ?? '');
+        break;
       case 'value':
         cmp = a.valueSats - b.valueSats;
         break;
       case 'confirmations':
         cmp = a.confirmations - b.confirmations;
+        break;
+      case 'date':
+        cmp = new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime();
         break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
@@ -452,7 +471,7 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by outpoint or address..."
+          placeholder="Filter by outpoint, address, or date..."
           className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
         />
         <input
@@ -467,8 +486,10 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
           <tr className="border-b border-[var(--color-coffer-border)]">
             {header('outpoint', 'Outpoint')}
+            {header('address', 'Address')}
             {header('value', 'Value')}
             {header('confirmations', 'Confirmations')}
+            {header('date', 'Date')}
             <th className="px-4 py-3">Metadata</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
@@ -484,12 +505,25 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
                   <CopyButton value={`${u.txId}:${u.vout}`} />
                 </span>
               </td>
+              <td className="px-4 py-2 font-mono text-xs">
+                {u.address ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Tooltip content={u.address}>
+                      <span>{shorten(u.address)}</span>
+                    </Tooltip>
+                    <CopyButton value={u.address} />
+                  </span>
+                ) : (
+                  '—'
+                )}
+              </td>
               <td className="px-4 py-2">
                 <span className="text-green-400">{formatBtc(u.valueSats)}</span>
               </td>
               <td className="px-4 py-2">
                 {u.confirmations > 0 ? u.confirmations : <Badge tone="default">mempool</Badge>}
               </td>
+              <td className="px-4 py-2">{formatDate(u.timestamp)}</td>
               <td className="px-4 py-2">
                 <UtxoMetadata wallet={wallet} txId={u.txId} vout={u.vout} onSaved={onNoteSaved} />
               </td>
