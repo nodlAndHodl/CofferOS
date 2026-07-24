@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { Activity, Plus, Server, Trash2, Wallet as WalletIcon, Zap } from 'lucide-react';
 import { api } from '../api/client';
 import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage } from '../types';
-import { Badge, Button, Card, Spinner } from '../components/ui';
+import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
 import { ImportWalletModal } from '../components/ImportWalletModal';
+import { Tooltip } from '../components/Tooltip';
 import { formatBtc, formatDate, shorten } from '../lib/format';
+import { getTagColorClass } from '../lib/tagColor';
 
 function normalizeActivity(raw: unknown): RecentActivityPage | null {
   const page = raw as any;
@@ -186,7 +188,14 @@ export function DashboardPage() {
               <tbody>
                 {activity.items.map((t) => (
                   <tr key={t.txId} className="border-b border-[var(--color-coffer-border)]/50">
-                    <td className="px-2 py-2 font-mono text-xs">{shorten(t.txId)}</td>
+                    <td className="px-2 py-2 font-mono text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <Tooltip content={t.txId}>
+                          <span>{shorten(t.txId)}</span>
+                        </Tooltip>
+                        <CopyButton value={t.txId} />
+                      </span>
+                    </td>
                     <td className="px-2 py-2">
                       <span className={t.netAmountSats >= 0 ? 'text-green-400' : 'text-red-400'}>
                         {formatBtc(t.netAmountSats)}
@@ -197,9 +206,9 @@ export function DashboardPage() {
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex flex-wrap gap-1">
-                        {t.label && <Badge tone="default">{t.label}</Badge>}
+                        {t.label && <Badge tone="blue">{t.label}</Badge>}
                         {t.tags.map((tag) => (
-                          <Badge key={tag} tone="default">
+                          <Badge key={tag} className={getTagColorClass(tag)}>
                             {tag}
                           </Badge>
                         ))}

@@ -3,9 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { api } from '../api/client';
 import type { Note, WalletDetail } from '../types';
-import { MetadataBadge } from '../components/TransactionMetadataModal';
 import { WalletTimeline } from '../components/WalletTimeline';
-import { Badge, Button, Card, Spinner } from '../components/ui';
+import { InlineMetadataEditor } from '../components/InlineMetadataEditor';
+import { Tooltip } from '../components/Tooltip';
+import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
 import { formatBtc, formatDate, shorten } from '../lib/format';
 
 type Tab = 'addresses' | 'utxos' | 'transactions' | 'descriptors' | 'timeline';
@@ -338,11 +339,36 @@ function AddressTable({ wallet }: { wallet: WalletDetail }) {
           {paged.map((a) => (
             <tr key={a.id} className="border-b border-[var(--color-coffer-border)]/50">
               <td className="px-4 py-2">{a.derivationIndex}</td>
-              <td className="px-4 py-2 font-mono text-xs">{a.value}</td>
+              <td className="px-4 py-2 font-mono text-xs">
+                <span className="inline-flex items-center gap-1">
+                  <Tooltip content={a.value}>
+                    <span>{a.value}</span>
+                  </Tooltip>
+                  <CopyButton value={a.value} />
+                </span>
+              </td>
               <td className="px-4 py-2">{a.isUsed ? <Badge tone="orange">used</Badge> : <Badge>unused</Badge>}</td>
               <td className="px-4 py-2">{a.useCount}</td>
-              <td className="px-4 py-2 font-mono text-xs">{a.firstTxId ? shorten(a.firstTxId) : '—'}</td>
-              <td className="px-4 py-2 font-mono text-xs">{a.lastTxId ? shorten(a.lastTxId) : '—'}</td>
+              <td className="px-4 py-2 font-mono text-xs">
+                {a.firstTxId ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Tooltip content={a.firstTxId}>
+                      <span>{shorten(a.firstTxId)}</span>
+                    </Tooltip>
+                    <CopyButton value={a.firstTxId} />
+                  </span>
+                ) : '—'}
+              </td>
+              <td className="px-4 py-2 font-mono text-xs">
+                {a.lastTxId ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Tooltip content={a.lastTxId}>
+                      <span>{shorten(a.lastTxId)}</span>
+                    </Tooltip>
+                    <CopyButton value={a.lastTxId} />
+                  </span>
+                ) : '—'}
+              </td>
               <td className="px-4 py-2">
                 <span className={a.currentSats > 0 ? 'text-green-400' : ''}>{formatBtc(a.currentSats)}</span>
               </td>
@@ -361,13 +387,24 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
   const [sortKey, setSortKey] = useState<'outpoint' | 'value' | 'confirmations'>('outpoint');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  useEffect(() => setPage(0), [wallet.utxos.length, filter, sortKey, sortDir]);
+  const [metaFilter, setMetaFilter] = useState('');
+  const normalizedMetaFilter = metaFilter.trim().toLowerCase();
+
+  useEffect(() => setPage(0), [wallet.utxos.length, filter, normalizedMetaFilter, sortKey, sortDir]);
+
+  const matchesMetadata = (reference: string) => {
+    if (!normalizedMetaFilter) return true;
+    return wallet.labels.some((l) => l.target === 'Utxo' && l.reference === reference && l.text.toLowerCase().includes(normalizedMetaFilter)) ||
+      wallet.tags.some((t) => t.target === 'Utxo' && t.reference === reference && t.value.toLowerCase().includes(normalizedMetaFilter)) ||
+      wallet.categories.some((c) => c.target === 'Utxo' && c.reference === reference && c.name.toLowerCase().includes(normalizedMetaFilter));
+  };
 
   const filtered = wallet.utxos.filter(
     (u) =>
-      u.txId.toLowerCase().includes(filter.toLowerCase()) ||
-      `${u.txId}:${u.vout}`.toLowerCase().includes(filter.toLowerCase()) ||
-      (u.address ?? '').toLowerCase().includes(filter.toLowerCase())
+      (u.txId.toLowerCase().includes(filter.toLowerCase()) ||
+        `${u.txId}:${u.vout}`.toLowerCase().includes(filter.toLowerCase()) ||
+        (u.address ?? '').toLowerCase().includes(filter.toLowerCase())) &&
+      matchesMetadata(`${u.txId}:${u.vout}`)
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -418,6 +455,13 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
           placeholder="Filter by outpoint or address..."
           className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
         />
+        <input
+          type="text"
+          value={metaFilter}
+          onChange={(e) => setMetaFilter(e.target.value)}
+          placeholder="Filter metadata (label/category/tag)"
+          className="mt-2 w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
+        />
       </div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
@@ -425,20 +469,31 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
             {header('outpoint', 'Outpoint')}
             {header('value', 'Value')}
             {header('confirmations', 'Confirmations')}
+            <th className="px-4 py-3">Metadata</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>
         <tbody>
           {paged.map((u) => (
             <tr key={`${u.txId}:${u.vout}`} className="border-b border-[var(--color-coffer-border)]/50">
-              <td className="px-4 py-2 font-mono text-xs">{shorten(u.txId)}:{u.vout}</td>
+              <td className="px-4 py-2 font-mono text-xs">
+                <span className="inline-flex items-center gap-1">
+                  <Tooltip content={`${u.txId}:${u.vout}`}>
+                    <span>{shorten(u.txId)}:{u.vout}</span>
+                  </Tooltip>
+                  <CopyButton value={`${u.txId}:${u.vout}`} />
+                </span>
+              </td>
               <td className="px-4 py-2">
                 <span className="text-green-400">{formatBtc(u.valueSats)}</span>
               </td>
               <td className="px-4 py-2">
                 {u.confirmations > 0 ? u.confirmations : <Badge tone="default">mempool</Badge>}
               </td>
-              <td className="px-4 py-2 flex items-center gap-2">
+              <td className="px-4 py-2">
+                <UtxoMetadata wallet={wallet} txId={u.txId} vout={u.vout} onSaved={onNoteSaved} />
+              </td>
+              <td className="px-4 py-2">
                 <NoteCell
                   walletId={wallet.id}
                   target="Utxo"
@@ -446,7 +501,6 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
                   notes={wallet.notes}
                   onSaved={onNoteSaved}
                 />
-                <MetadataBadge walletId={wallet.id} target="Utxo" reference={`${u.txId}:${u.vout}`} />
               </td>
             </tr>
           ))}
@@ -460,16 +514,27 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
 function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved: () => void }) {
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState('');
+  const [metaFilter, setMetaFilter] = useState('');
   const [sortKey, setSortKey] = useState<'txid' | 'amount' | 'fee' | 'direction' | 'confirmations' | 'height' | 'time'>('time');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  useEffect(() => setPage(0), [wallet.transactions.length, filter, sortKey, sortDir]);
+  const normalizedMetaFilter = metaFilter.trim().toLowerCase();
+
+  const matchesMetadata = (reference: string) => {
+    if (!normalizedMetaFilter) return true;
+    return wallet.labels.some((l) => l.target === 'Transaction' && l.reference === reference && l.text.toLowerCase().includes(normalizedMetaFilter)) ||
+      wallet.tags.some((t) => t.target === 'Transaction' && t.reference === reference && t.value.toLowerCase().includes(normalizedMetaFilter)) ||
+      wallet.categories.some((c) => c.target === 'Transaction' && c.reference === reference && c.name.toLowerCase().includes(normalizedMetaFilter));
+  };
+
+  useEffect(() => setPage(0), [wallet.transactions.length, filter, normalizedMetaFilter, sortKey, sortDir]);
 
   const filtered = wallet.transactions.filter(
     (t) =>
-      t.txId.toLowerCase().includes(filter.toLowerCase()) ||
-      t.direction.toLowerCase().includes(filter.toLowerCase()) ||
-      String(t.blockHeight ?? '').includes(filter)
+      (t.txId.toLowerCase().includes(filter.toLowerCase()) ||
+        t.direction.toLowerCase().includes(filter.toLowerCase()) ||
+        String(t.blockHeight ?? '').includes(filter)) &&
+      matchesMetadata(t.txId)
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -532,6 +597,13 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
           placeholder="Filter by txid, direction, or block height..."
           className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
         />
+        <input
+          type="text"
+          value={metaFilter}
+          onChange={(e) => setMetaFilter(e.target.value)}
+          placeholder="Filter metadata (label/category/tag)"
+          className="mt-2 w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
+        />
       </div>
       <table className="w-full text-left text-sm">
         <thead className="text-xs uppercase text-[var(--color-coffer-muted)]">
@@ -543,13 +615,21 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
             {header('confirmations', 'Confirmations')}
             {header('height', 'Block Height')}
             {header('time', 'Time')}
+            <th className="px-4 py-3">Metadata</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>
         <tbody>
           {paged.map((t) => (
             <tr key={t.txId} className="border-b border-[var(--color-coffer-border)]/50">
-              <td className="px-4 py-2 font-mono text-xs">{shorten(t.txId)}</td>
+              <td className="px-4 py-2 font-mono text-xs">
+                <span className="inline-flex items-center gap-1">
+                  <Tooltip content={t.txId}>
+                    <span>{shorten(t.txId)}</span>
+                  </Tooltip>
+                  <CopyButton value={t.txId} />
+                </span>
+              </td>
               <td className="px-4 py-2">
                 <span className={t.netAmountSats >= 0 ? 'text-green-400' : 'text-red-400'}>{formatBtc(t.netAmountSats)}</span>
               </td>
@@ -564,7 +644,10 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
               </td>
               <td className="px-4 py-2">{t.blockHeight ?? '—'}</td>
               <td className="px-4 py-2">{formatDate(t.timestamp)}</td>
-              <td className="px-4 py-2 flex items-center gap-2">
+              <td className="px-4 py-2">
+                <TransactionMetadata wallet={wallet} txId={t.txId} onSaved={onNoteSaved} />
+              </td>
+              <td className="px-4 py-2">
                 <NoteCell
                   walletId={wallet.id}
                   target="Transaction"
@@ -572,7 +655,6 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
                   notes={wallet.notes}
                   onSaved={onNoteSaved}
                 />
-                <MetadataBadge walletId={wallet.id} target="Transaction" reference={t.txId} />
               </td>
             </tr>
           ))}
@@ -580,6 +662,59 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
       </table>
       <Pagination page={page} totalPages={totalPages} onChange={setPage} />
     </div>
+  );
+}
+
+function UtxoMetadata({ wallet, txId, vout, onSaved }: { wallet: WalletDetail; txId: string; vout: number; onSaved: () => void }) {
+  const reference = `${txId}:${vout}`;
+  const label =
+    wallet.labels
+      .filter((l) => l.target === 'Utxo' && l.reference === reference)
+      .map((l) => l.text)
+      .join(', ') || null;
+  const category =
+    wallet.categories
+      .filter((c) => c.target === 'Utxo' && c.reference === reference)
+      .map((c) => c.name)
+      .join(', ') || null;
+  const tags = wallet.tags.filter((t) => t.target === 'Utxo' && t.reference === reference).map((t) => t.value);
+
+  return (
+    <InlineMetadataEditor
+      walletId={wallet.id}
+      target="Utxo"
+      reference={reference}
+      label={label}
+      category={category}
+      tags={tags}
+      onSaved={onSaved}
+    />
+  );
+}
+
+function TransactionMetadata({ wallet, txId, onSaved }: { wallet: WalletDetail; txId: string; onSaved: () => void }) {
+  const label =
+    wallet.labels
+      .filter((l) => l.target === 'Transaction' && l.reference === txId)
+      .map((l) => l.text)
+      .join(', ') || null;
+  const category =
+    wallet.categories
+      .filter((c) => c.target === 'Transaction' && c.reference === txId)
+      .map((c) => c.name)
+      .join(', ') || null;
+  const tags = wallet.tags.filter((t) => t.target === 'Transaction' && t.reference === txId).map((t) => t.value);
+
+  return (
+    <InlineMetadataEditor
+      walletId={wallet.id}
+      target="Transaction"
+      reference={txId}
+      label={label}
+      category={category}
+      tags={tags}
+      onSaved={onSaved}
+    />
   );
 }
 
