@@ -79,6 +79,9 @@ public interface IWalletHistoryProvider
     Task<WalletHistoryScan> GetWalletHistoryAsync(
         IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Returns the current chain tip from the history provider, used to compute confirmations.</summary>
+    Task<long?> GetTipHeightAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed record NodeAddressInfo(Guid DescriptorId, int Index, bool IsChange, string Address, string ScriptPubKeyHex);
@@ -96,4 +99,5 @@ public sealed record NodeWalletTransaction(
 public sealed record WalletHistoryScan(
     IReadOnlyList<NodeWalletTransaction> Transactions,
     IReadOnlyList<AddressTxRef> AddressHistory,
-    IReadOnlyList<NodeAddressInfo> DerivedAddresses);
+    IReadOnlyList<NodeAddressInfo> DerivedAddresses,
+    IReadOnlyList<NodeUtxo> Utxos);

@@ -74,6 +74,43 @@ namespace CofferOS.Infrastructure.Persistence.Migrations
                     b.ToTable("addresses", (string)null);
                 });
 
+            modelBuilder.Entity("CofferOS.Domain.Wallets.Category", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WalletId");
+
+                    b.HasIndex("WalletId", "Target", "Reference")
+                        .IsUnique();
+
+                    b.ToTable("categories", (string)null);
+                });
+
             modelBuilder.Entity("CofferOS.Domain.Wallets.Descriptor", b =>
                 {
                     b.Property<Guid>("Id")
@@ -159,6 +196,51 @@ namespace CofferOS.Infrastructure.Persistence.Migrations
                     b.ToTable("labels", (string)null);
                 });
 
+            modelBuilder.Entity("CofferOS.Domain.Wallets.MetadataEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WalletId");
+
+                    b.HasIndex("WalletId", "Target", "Reference", "Key")
+                        .IsUnique();
+
+                    b.ToTable("metadata_entries", (string)null);
+                });
+
             modelBuilder.Entity("CofferOS.Domain.Wallets.Note", b =>
                 {
                     b.Property<Guid>("Id")
@@ -193,6 +275,88 @@ namespace CofferOS.Infrastructure.Persistence.Migrations
                     b.HasIndex("WalletId");
 
                     b.ToTable("notes", (string)null);
+                });
+
+            modelBuilder.Entity("CofferOS.Domain.Wallets.Tag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WalletId");
+
+                    b.HasIndex("WalletId", "Target", "Reference", "Value")
+                        .IsUnique();
+
+                    b.ToTable("tags", (string)null);
+                });
+
+            modelBuilder.Entity("CofferOS.Domain.Wallets.TimelineEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("WalletId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WalletId");
+
+                    b.HasIndex("WalletId", "OccurredAt");
+
+                    b.ToTable("timeline_events", (string)null);
                 });
 
             modelBuilder.Entity("CofferOS.Domain.Wallets.Utxo", b =>

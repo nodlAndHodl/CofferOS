@@ -17,17 +17,20 @@ public sealed class WalletImportService
     private readonly IWalletRepository _wallets;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDescriptorParser _parser;
+    private readonly IWalletReadStore _readStore;
     private readonly ILogger<WalletImportService> _logger;
 
     public WalletImportService(
         IWalletRepository wallets,
         IUnitOfWork unitOfWork,
         IDescriptorParser parser,
+        IWalletReadStore readStore,
         ILogger<WalletImportService> logger)
     {
         _wallets = wallets;
         _unitOfWork = unitOfWork;
         _parser = parser;
+        _readStore = readStore;
         _logger = logger;
     }
 
@@ -67,6 +70,11 @@ public sealed class WalletImportService
         await _wallets.AddAsync(wallet, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        // The WalletImportedEvent handler has already rescanned and persisted UTXOs/transactions.
+        var utxos = await _readStore.GetUtxosAsync(wallet.Id, cancellationToken);
+        var txs = await _readStore.GetTransactionsAsync(wallet.Id, cancellationToken);
+        var balance = WalletQueryService.ComputeBalance(utxos);
+
         _logger.LogInformation("Imported watch-only wallet {WalletId} ({Name}) with {AddressCount} derived addresses",
             wallet.Id, wallet.Name, count);
 
@@ -77,8 +85,8 @@ public sealed class WalletImportService
             wallet.Network.ToString(),
             wallet.WatchOnly,
             wallet.Descriptors.Count,
-            wallet.Transactions.Count,
-            new BalanceDto(0, 0, 0, 0m),
+            txs.Count,
+            balance,
             wallet.CreatedAt);
     }
 

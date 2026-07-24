@@ -16,11 +16,15 @@ public static class DependencyInjection
         services.AddScoped<WalletImportService>();
         services.AddScoped<WalletQueryService>();
         services.AddScoped<WalletRescanService>();
+        services.AddScoped<TransactionMetadataService>();
+        services.AddScoped<WalletTimelineService>();
         services.AddScoped<DashboardService>();
 
         // Domain event handlers (each is resolved by the dispatcher as IDomainEventHandler<T>)
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, WalletImportedLoggingHandler>();
+        services.AddScoped<IDomainEventHandler<WalletImportedEvent>, RescanOnWalletImportedHandler>();
         services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, NewBlockLoggingHandler>();
+        services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, RescanOnNewBlockHandler>();
 
         return services;
     }

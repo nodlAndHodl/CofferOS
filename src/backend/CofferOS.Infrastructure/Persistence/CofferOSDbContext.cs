@@ -28,6 +28,10 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<Utxo> Utxos => Set<Utxo>();
     public DbSet<Label> Labels => Set<Label>();
     public DbSet<Note> Notes => Set<Note>();
+    public DbSet<Tag> Tags => Set<Tag>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<MetadataEntry> MetadataEntries => Set<MetadataEntry>();
+    public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -139,6 +143,52 @@ public sealed class CofferOSDbContext : DbContext
             b.Property(x => x.Reference).IsRequired().HasMaxLength(200);
             b.Property(x => x.Content).IsRequired();
             b.HasIndex(x => x.WalletId);
+        });
+
+        modelBuilder.Entity<Tag>(b =>
+        {
+            b.ToTable("tags");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Target).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Reference).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Value).IsRequired().HasMaxLength(100);
+            b.HasIndex(x => x.WalletId);
+            b.HasIndex(x => new { x.WalletId, x.Target, x.Reference, x.Value }).IsUnique();
+        });
+
+        modelBuilder.Entity<Category>(b =>
+        {
+            b.ToTable("categories");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Target).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Reference).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            b.HasIndex(x => x.WalletId);
+            b.HasIndex(x => new { x.WalletId, x.Target, x.Reference }).IsUnique();
+        });
+
+        modelBuilder.Entity<MetadataEntry>(b =>
+        {
+            b.ToTable("metadata_entries");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Target).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Reference).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Key).IsRequired().HasMaxLength(100);
+            b.Property(x => x.Value).IsRequired().HasMaxLength(2000);
+            b.HasIndex(x => x.WalletId);
+            b.HasIndex(x => new { x.WalletId, x.Target, x.Reference, x.Key }).IsUnique();
+        });
+
+        modelBuilder.Entity<TimelineEvent>(b =>
+        {
+            b.ToTable("timeline_events");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Type).HasConversion<string>().HasMaxLength(30);
+            b.Property(x => x.Title).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Description).HasMaxLength(2000);
+            b.Property(x => x.Reference).HasMaxLength(200);
+            b.HasIndex(x => x.WalletId);
+            b.HasIndex(x => new { x.WalletId, x.OccurredAt });
         });
     }
 

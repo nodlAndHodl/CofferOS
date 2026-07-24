@@ -56,6 +56,7 @@ export interface Utxo {
   valueSats: number;
   address?: string | null;
   confirmations: number;
+  timestamp?: string | null;
   isSpent: boolean;
 }
 
@@ -74,6 +75,25 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface Tag {
+  target: string;
+  reference: string;
+  value: string;
+}
+
+export interface Category {
+  target: string;
+  reference: string;
+  name: string;
+}
+
+export interface MetadataEntry {
+  target: string;
+  reference: string;
+  key: string;
+  value: string;
+}
+
 export interface WalletDetail {
   id: string;
   name: string;
@@ -87,7 +107,74 @@ export interface WalletDetail {
   utxos: Utxo[];
   labels: Label[];
   notes: Note[];
+  tags: Tag[];
+  categories: Category[];
+  metadata: MetadataEntry[];
   createdAt: string;
+}
+
+export interface ObjectMetadata {
+  target: string;
+  reference: string;
+  label?: string | null;
+  category?: string | null;
+  tags: string[];
+  metadata: Record<string, string>;
+  notes: Note[];
+}
+
+export interface UpdateMetadataRequest {
+  target: string;
+  reference: string;
+  label?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  metadata?: Record<string, string> | null;
+}
+
+export interface TimelineEntry {
+  id?: string | null;
+  type: string;
+  occurredAt: string;
+  title: string;
+  description?: string | null;
+  reference?: string | null;
+  amountSats?: number | null;
+  runningBalanceSats?: number | null;
+  isUserEvent: boolean;
+}
+
+export interface WalletTimeline {
+  walletId: string;
+  walletName: string;
+  currentBalance: Balance;
+  entries: TimelineEntry[];
+}
+
+export interface TimelineEvent {
+  id: string;
+  type: string;
+  occurredAt: string;
+  title: string;
+  description?: string | null;
+  reference?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTimelineEventRequest {
+  occurredAt: string;
+  title: string;
+  description?: string | null;
+  reference?: string | null;
+  type?: string | null;
+}
+
+export interface UpdateTimelineEventRequest {
+  occurredAt: string;
+  title: string;
+  description?: string | null;
+  reference?: string | null;
 }
 
 export interface NodeStatus {
@@ -99,12 +186,38 @@ export interface NodeStatus {
   error?: string | null;
 }
 
+export interface ElectrumStatus {
+  connected: boolean;
+  providerId: string;
+  host: string;
+  port: number;
+  socks5Proxy?: string | null;
+  blockHeight?: number | null;
+  error?: string | null;
+}
+
+export interface RecentActivityItem {
+  txId: string;
+  netAmountSats: number;
+  blockHeight?: number | null;
+  timestamp?: string | null;
+  walletName: string;
+  label?: string | null;
+  tags: string[];
+}
+
+export interface RecentActivityPage {
+  skip: number;
+  take: number;
+  total: number;
+  items: RecentActivityItem[];
+}
+
 export interface Dashboard {
   walletCount: number;
   totalBalance: Balance;
   wallets: WalletSummary[];
-  recentActivity: Transaction[];
-  node: NodeStatus;
+  recentActivity: RecentActivityPage;
 }
 
 export interface ImportWalletRequest {
@@ -124,3 +237,4 @@ export interface CreateNoteRequest {
 export interface UpdateNoteRequest {
   content: string;
 }
+

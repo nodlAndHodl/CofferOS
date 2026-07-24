@@ -1,3 +1,4 @@
+using CofferOS.Domain.Common;
 using CofferOS.Domain.Wallets;
 
 namespace CofferOS.Application.Abstractions.Persistence;
@@ -31,6 +32,42 @@ public interface IWalletReadStore
     Task<IReadOnlyList<Utxo>> GetUtxosAsync(Guid walletId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Label>> GetLabelsAsync(Guid walletId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Note>> GetNotesAsync(Guid walletId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Tag>> GetTagsAsync(Guid walletId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Category>> GetCategoriesAsync(Guid walletId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MetadataEntry>> GetMetadataAsync(Guid walletId, CancellationToken cancellationToken = default);
+
+    /// <summary>Most recent transactions across all wallets, paginated.</summary>
+    Task<IReadOnlyList<WalletTransaction>> GetRecentTransactionsAsync(int skip, int take, CancellationToken cancellationToken = default);
+
+    Task<int> GetRecentTransactionCountAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>Read/write access to user-defined metadata (labels, tags, categories, key/value entries) for a target object.</summary>
+public interface IMetadataRepository
+{
+    Task<IReadOnlyList<Label>> GetLabelsAsync(Guid walletId, LabelTarget target, string reference, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Tag>> GetTagsAsync(Guid walletId, LabelTarget target, string reference, CancellationToken cancellationToken = default);
+    Task<Category?> GetCategoryAsync(Guid walletId, LabelTarget target, string reference, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MetadataEntry>> GetEntriesAsync(Guid walletId, LabelTarget target, string reference, CancellationToken cancellationToken = default);
+
+    Task AddLabelAsync(Label label, CancellationToken cancellationToken = default);
+    Task AddTagAsync(Tag tag, CancellationToken cancellationToken = default);
+    Task AddCategoryAsync(Category category, CancellationToken cancellationToken = default);
+    Task AddEntryAsync(MetadataEntry entry, CancellationToken cancellationToken = default);
+
+    void RemoveLabel(Label label);
+    void RemoveTag(Tag tag);
+    void RemoveCategory(Category category);
+    void RemoveEntry(MetadataEntry entry);
+}
+
+/// <summary>Read/write access to user-recorded wallet timeline events.</summary>
+public interface ITimelineEventRepository
+{
+    Task<TimelineEvent?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TimelineEvent>> GetByWalletAsync(Guid walletId, CancellationToken cancellationToken = default);
+    Task AddAsync(TimelineEvent timelineEvent, CancellationToken cancellationToken = default);
+    void Remove(TimelineEvent timelineEvent);
 }
 
 /// <summary>Read/write access to derived wallet addresses.</summary>

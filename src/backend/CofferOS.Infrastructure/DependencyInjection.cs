@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<IAddressRepository, AddressRepository>();
         services.AddScoped<INoteRepository, NoteRepository>();
+        services.AddScoped<IMetadataRepository, MetadataRepository>();
+        services.AddScoped<ITimelineEventRepository, TimelineEventRepository>();
         services.AddScoped<IWalletReadStore, WalletReadStore>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
