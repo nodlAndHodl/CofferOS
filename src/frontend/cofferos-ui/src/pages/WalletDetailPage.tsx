@@ -4,6 +4,7 @@ import { ArrowLeft, FileText } from 'lucide-react';
 import { api } from '../api/client';
 import type { Address, Note, WalletDetail } from '../types';
 import { WalletTimeline } from '../components/WalletTimeline';
+import { WalletValueSparkline } from '../components/WalletValueSparkline';
 import { InlineMetadataEditor } from '../components/InlineMetadataEditor';
 import { Tooltip } from '../components/Tooltip';
 import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
@@ -72,16 +73,22 @@ export function WalletDetailPage() {
           {wallet.description && <p className="mt-1 text-sm text-[var(--color-coffer-muted)]">{wallet.description}</p>}
           <p className="mt-1 text-xs text-[var(--color-coffer-muted)]">Created {formatDate(wallet.createdAt)}</p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold">{formatBtc(wallet.balance.totalSats)}</div>
-          <div className="text-xs text-[var(--color-coffer-muted)]">
-            {formatBtc(wallet.balance.confirmedSats)} confirmed
-          </div>
-          {wallet.balance.unconfirmedSats !== 0 && (
+        <div className="flex items-center gap-6 text-right">
+          <WalletValueSparkline
+            transactions={wallet.transactions}
+            currentSats={wallet.balance.totalSats}
+          />
+          <div>
+            <div className="text-2xl font-bold">{formatBtc(wallet.balance.totalSats)}</div>
             <div className="text-xs text-[var(--color-coffer-muted)]">
-              {formatBtc(wallet.balance.unconfirmedSats)} pending
+              {formatBtc(wallet.balance.confirmedSats)} confirmed
             </div>
-          )}
+            {wallet.balance.unconfirmedSats !== 0 && (
+              <div className="text-xs text-[var(--color-coffer-muted)]">
+                {formatBtc(wallet.balance.unconfirmedSats)} pending
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
