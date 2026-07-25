@@ -238,3 +238,111 @@ export interface UpdateNoteRequest {
   content: string;
 }
 
+// Treasury / Loans (Phase 1)
+export interface CreateLoanRequest {
+  name: string;
+  lender?: string;
+  principalAmount: number;
+  currentBalance: number;
+  interestRate: number;
+  interestType: string;
+  loanStartDate: string;
+  loanTermMonths?: number;
+  paymentFrequency: string;
+  collateralAmountBtc: number;
+  currentBtcPrice: number;
+  warningLtv: number;
+  liquidationLtv: number;
+  notes?: string;
+}
+
+export interface UpdateLoanRequest {
+  name: string;
+  lender?: string;
+  principalAmount: number;
+  currentBalance: number;
+  interestRate: number;
+  interestType: string;
+  loanStartDate: string;
+  loanTermMonths?: number;
+  paymentFrequency: string;
+  collateralAmountBtc: number;
+  currentBtcPrice: number;
+  warningLtv: number;
+  liquidationLtv: number;
+  notes?: string;
+}
+
+export interface UpdateLoanBalanceRequest {
+  currentBalance: number;
+}
+
+export interface UpdateLoanCollateralRequest {
+  collateralAmountBtc: number;
+  currentBtcPrice: number;
+}
+
+export interface SetBtcPriceRequest {
+  price: number;
+}
+
+export interface LoanSummary {
+  id: string;
+  name: string;
+  lender?: string | null;
+  status: string;
+  principalAmount: number;
+  currentBalance: number;
+  interestRate: number;
+  interestType: string;
+  collateralAmountBtc: number;
+  currentBtcPrice: number;
+  currentCollateralValue: number;
+  currentLtv: number;
+  warningLtv: number;
+  liquidationLtv: number;
+  distanceToWarning: number;
+  distanceToLiquidation: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoanDetail {
+  id: string;
+  name: string;
+  lender?: string | null;
+  status: string;
+  notes?: string | null;
+  principalAmount: number;
+  currentBalance: number;
+  interestRate: number;
+  interestType: string;
+  loanStartDate: string;
+  loanTermMonths?: number | null;
+  paymentFrequency: string;
+  collateralAmountBtc: number;
+  currentBtcPrice: number;
+  currentCollateralValue: number;
+  currentLtv: number;
+  warningLtv: number;
+  liquidationLtv: number;
+  warningPrice: number;
+  liquidationPrice: number;
+  distanceToWarning: number;
+  distanceToLiquidation: number;
+  remainingCollateralBuffer: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TreasurySummary {
+  activeLoanCount: number;
+  totalLoanBalance: number;
+  totalCollateralBtc: number;
+  totalCollateralValue: number;
+  averageLtv: number;
+  highestRiskLoan?: LoanSummary | null;
+  currentBtcPrice?: number | null;
+  priceProvider: string;
+}
+

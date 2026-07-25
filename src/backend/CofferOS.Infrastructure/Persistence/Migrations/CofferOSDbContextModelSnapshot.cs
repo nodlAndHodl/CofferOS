@@ -483,6 +483,82 @@ namespace CofferOS.Infrastructure.Persistence.Migrations
                     b.ToTable("transactions", (string)null);
                 });
 
+            modelBuilder.Entity("CofferOS.Domain.Treasury.Loan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("CollateralAmountBtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("CurrentBalance")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("CurrentBtcPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("InterestRate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InterestType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("LoanStartDate")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("LoanTermMonths")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("LiquidationLtv")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Lender")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PaymentFrequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("PrincipalAmount")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("WarningLtv")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("loans", (string)null);
+                });
+
             modelBuilder.Entity("CofferOS.Domain.Wallets.Address", b =>
                 {
                     b.HasOne("CofferOS.Domain.Wallets.Descriptor", null)

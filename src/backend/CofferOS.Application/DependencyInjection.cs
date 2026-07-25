@@ -1,5 +1,7 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Dashboard;
+using CofferOS.Application.Prices;
+using CofferOS.Application.Treasury;
 using CofferOS.Application.Wallets;
 using CofferOS.Application.Wallets.EventHandlers;
 using CofferOS.Domain.Events;
@@ -19,12 +21,17 @@ public static class DependencyInjection
         services.AddScoped<TransactionMetadataService>();
         services.AddScoped<WalletTimelineService>();
         services.AddScoped<DashboardService>();
+        services.AddScoped<TreasuryService>();
+        services.AddScoped<ILoanAccrualService, LoanAccrualService>();
 
         // Domain event handlers (each is resolved by the dispatcher as IDomainEventHandler<T>)
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, WalletImportedLoggingHandler>();
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, RescanOnWalletImportedHandler>();
         services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, NewBlockLoggingHandler>();
         services.AddScoped<IDomainEventHandler<NewBlockDetectedEvent>, RescanOnNewBlockHandler>();
+
+        // Bitcoin price engine event handlers
+        services.AddScoped<IDomainEventHandler<PriceUpdatedEvent>, PriceUpdatedLoggingHandler>();
 
         return services;
     }

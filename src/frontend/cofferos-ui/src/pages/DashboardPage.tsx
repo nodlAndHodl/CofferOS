@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Activity, Server, Wallet as WalletIcon, Zap } from 'lucide-react';
+import { Activity, Landmark, Server, Wallet as WalletIcon, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage } from '../types';
+import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage, TreasurySummary } from '../types';
 import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
-import { formatBtc, formatDate, shorten } from '../lib/format';
+import { formatBtc, formatDate, formatPercent, formatUsd, shorten } from '../lib/format';
 import { getTagColorClass } from '../lib/tagColor';
 
 function normalizeActivity(raw: unknown): RecentActivityPage | null {
@@ -51,6 +52,8 @@ export function DashboardPage() {
   const [electrumLoading, setElectrumLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<RecentActivityPage | null>(null);
+  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
+  const [treasuryLoading, setTreasuryLoading] = useState(true);
 
   async function load() {
     try {
@@ -65,8 +68,23 @@ export function DashboardPage() {
     }
   }
 
+  async function loadTreasury() {
+    setTreasuryLoading(true);
+    try {
+      setTreasury(await api.getTreasurySummary());
+    } catch {
+      setTreasury(null);
+    } finally {
+      setTreasuryLoading(false);
+    }
+  }
+
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    loadTreasury();
   }, []);
 
   async function loadNode() {
@@ -115,6 +133,34 @@ export function DashboardPage() {
         <StatCard icon={<Activity size={18} />} label="Wallets" value={String(data?.walletCount ?? 0)} />
         <NodeCard node={node} loading={nodeLoading} />
         <ElectrumCard electrum={electrum} loading={electrumLoading} />
+      </div>
+
+      {/* Treasury summary */}
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Treasury</h2>
+        <Link to="/treasury" className="text-xs text-[var(--color-coffer-muted)] hover:text-[var(--color-coffer-orange)]">Manage loans →</Link>
+      </div>
+      <div className="mb-8">
+        {treasuryLoading ? (
+          <Card className="p-4"><div className="text-sm text-[var(--color-coffer-muted)]">Loading…</div></Card>
+        ) : treasury && treasury.activeLoanCount > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <StatCard icon={<Landmark size={18} />} label="Active loans" value={String(treasury.activeLoanCount)} />
+            <StatCard icon={<Landmark size={18} />} label="Total loan balance" value={formatUsd(treasury.totalLoanBalance)} />
+            <StatCard icon={<Landmark size={18} />} label="Total collateral" value={`${treasury.totalCollateralBtc.toFixed(4)} BTC`} />
+            <StatCard icon={<Landmark size={18} />} label="Collateral value" value={formatUsd(treasury.totalCollateralValue)} />
+            <StatCard icon={<Landmark size={18} />} label="Avg LTV" value={formatPercent(treasury.averageLtv)} />
+          </div>
+        ) : (
+          <Card className="p-4 text-sm text-[var(--color-coffer-muted)]">
+            No active loans. <Link to="/treasury" className="text-[var(--color-coffer-orange)] hover:underline">Create one</Link> to start tracking Bitcoin-backed loans.
+          </Card>
+        )}
+        {treasury?.highestRiskLoan && (
+          <div className="mt-2 text-xs text-[var(--color-coffer-muted)]">
+            Highest risk: <Link to={`/treasury/${treasury.highestRiskLoan.id}`} className="text-[var(--color-coffer-orange)] hover:underline">{treasury.highestRiskLoan.name}</Link> — LTV {formatPercent(treasury.highestRiskLoan.currentLtv)}
+          </div>
+        )}
       </div>
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Recent activity</h2>

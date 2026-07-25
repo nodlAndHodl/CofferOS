@@ -80,3 +80,30 @@ public enum TimelineEventType
     /// <summary>Reserved: wallet migration events (sweeps, descriptor rotations).</summary>
     WalletMigration = 7
 }
+
+/// <summary>Lifecycle state of a Bitcoin-collateralized loan.</summary>
+public enum LoanStatus
+{
+    Active = 0,
+    PaidOff = 1,
+    Defaulted = 2,
+    Closed = 3
+}
+
+/// <summary>Type of interest applied to a loan.</summary>
+public enum InterestType
+{
+    Fixed = 0,
+    Variable = 1
+}
+
+/// <summary>Frequency of required loan payments.</summary>
+public enum PaymentFrequency
+{
+    Monthly = 0,
+    BiWeekly = 1,
+    Weekly = 2,
+    Quarterly = 3,
+    Annually = 4,
+    OneTime = 5
+}

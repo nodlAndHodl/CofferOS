@@ -1,4 +1,5 @@
 using CofferOS.Domain.Common;
+using CofferOS.Domain.Treasury;
 using CofferOS.Domain.Wallets;
 
 namespace CofferOS.Application.Abstractions.Persistence;
@@ -84,6 +85,24 @@ public interface INoteRepository
     Task<IReadOnlyList<Note>> GetByWalletAsync(Guid walletId, CancellationToken cancellationToken = default);
     Task AddAsync(Note note, CancellationToken cancellationToken = default);
     void Remove(Note note);
+}
+
+/// <summary>Read/write access to loans (Bitcoin-collateralized). Standalone aggregate (Phase 1: manual entry).</summary>
+public interface ILoanRepository
+{
+    Task<Loan?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Loan>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Loan>> GetActiveAsync(CancellationToken cancellationToken = default);
+    Task AddAsync(Loan loan, CancellationToken cancellationToken = default);
+    void Remove(Loan loan);
+}
+
+/// <summary>Read/write access to loan payments. Payments drive derived balances in the accrual model.</summary>
+public interface ILoanPaymentRepository
+{
+    Task<IReadOnlyList<LoanPayment>> GetByLoanAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task AddAsync(LoanPayment payment, CancellationToken cancellationToken = default);
+    void Remove(LoanPayment payment);
 }
 
 /// <summary>Transactional boundary. Committing also dispatches buffered domain events.</summary>

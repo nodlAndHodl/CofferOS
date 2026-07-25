@@ -1,5 +1,6 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Domain.Common;
+using CofferOS.Domain.Treasury;
 using CofferOS.Domain.Wallets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -32,6 +33,9 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<MetadataEntry> MetadataEntries => Set<MetadataEntry>();
     public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
+    public DbSet<Loan> Loans => Set<Loan>();
+    public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
+    public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -189,6 +193,52 @@ public sealed class CofferOSDbContext : DbContext
             b.Property(x => x.Reference).HasMaxLength(200);
             b.HasIndex(x => x.WalletId);
             b.HasIndex(x => new { x.WalletId, x.OccurredAt });
+        });
+
+        modelBuilder.Entity<Loan>(b =>
+        {
+            b.ToTable("loans");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Lender).HasMaxLength(200);
+            b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Notes).HasMaxLength(4000);
+            b.Property(x => x.PrincipalAmount).HasPrecision(18, 8);
+            b.Property(x => x.CurrentBalance).HasPrecision(18, 8);
+            b.Property(x => x.InterestRate).HasPrecision(18, 8);
+            b.Property(x => x.InterestType).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.PaymentFrequency).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.CollateralAmountBtc).HasPrecision(18, 8);
+            b.Property(x => x.CurrentBtcPrice).HasPrecision(18, 8);
+            b.Property(x => x.WarningLtv).HasPrecision(18, 8);
+            b.Property(x => x.LiquidationLtv).HasPrecision(18, 8);
+            b.Property(x => x.LoanTermMonths);
+            b.Property(x => x.AccruedInterest).HasPrecision(18, 8);
+            b.Property(x => x.LastAccruedOn);
+            b.HasIndex(x => x.Status);
+            b.HasIndex(x => x.CreatedAt);
+        });
+
+        modelBuilder.Entity<LoanPayment>(b =>
+        {
+            b.ToTable("loan_payments");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.TotalAmount).HasPrecision(18, 8);
+            b.Property(x => x.PrincipalAmount).HasPrecision(18, 8);
+            b.Property(x => x.InterestAmount).HasPrecision(18, 8);
+            b.Property(x => x.Notes).HasMaxLength(2000);
+            b.HasIndex(x => x.LoanId);
+            b.HasIndex(x => x.PaymentDate);
+        });
+
+        modelBuilder.Entity<CofferOS.Domain.Prices.BitcoinPriceHistory>(b =>
+        {
+            b.ToTable("bitcoin_price_history");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.PriceUsd).HasPrecision(18, 8);
+            b.Property(x => x.Provider).IsRequired().HasMaxLength(50);
+            b.HasIndex(x => x.Timestamp);
+            b.HasIndex(x => x.Provider);
         });
     }
 
