@@ -1,5 +1,4 @@
 using CofferOS.Application.Prices;
-using CofferOS.Infrastructure.Providers;
 using Microsoft.Extensions.Options;
 
 namespace CofferOS.Api.BackgroundServices;
@@ -29,7 +28,7 @@ public sealed class PriceRefreshHostedService : BackgroundService
             try
             {
                 await using var scope = _services.CreateAsyncScope();
-                var opts = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().Value;
+                var opts = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().CurrentValue;
 
                 if (!opts.Enabled)
                 {
@@ -64,7 +63,7 @@ public sealed class PriceRefreshHostedService : BackgroundService
             try
             {
                 await using var scope2 = _services.CreateAsyncScope();
-                var opts2 = scope2.ServiceProvider.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().Value;
+                var opts2 = scope2.ServiceProvider.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().CurrentValue;
                 if (opts2.PollIntervalSeconds > 0)
                     intervalSeconds = opts2.PollIntervalSeconds;
             }

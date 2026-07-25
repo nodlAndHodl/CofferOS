@@ -3,7 +3,6 @@ using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Domain.Events;
 using CofferOS.Domain.Prices;
-using CofferOS.Infrastructure.Providers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

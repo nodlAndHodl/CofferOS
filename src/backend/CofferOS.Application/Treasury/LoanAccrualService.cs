@@ -1,4 +1,5 @@
 using CofferOS.Application.Abstractions.Persistence;
+using CofferOS.Domain.Common;
 using CofferOS.Domain.Treasury;
 
 namespace CofferOS.Application.Treasury;

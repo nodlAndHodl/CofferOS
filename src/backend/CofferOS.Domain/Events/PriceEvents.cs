@@ -8,4 +8,4 @@ namespace CofferOS.Domain.Events;
 public sealed record PriceUpdatedEvent(
     decimal PriceUsd,
     string Provider,
-    DateTimeOffset Timestamp) : IDomainEvent;
+    DateTimeOffset OccurredOn) : IDomainEvent;

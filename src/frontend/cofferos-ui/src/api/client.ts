@@ -1,4 +1,5 @@
 import type {
+  BtcPriceInfo,
   CreateLoanRequest,
   CreateNoteRequest,
   CreateTimelineEventRequest,
@@ -111,5 +112,5 @@ export const api = {
     request<LoanDetail>(`/loans/${id}/collateral`, { method: 'PUT', body: JSON.stringify(payload) }),
   setBtcPrice: (payload: SetBtcPriceRequest) =>
     request<{ price: number }>('/price', { method: 'POST', body: JSON.stringify(payload) }),
-  getBtcPrice: () => request<{ price: number | null; providerId: string; displayName: string }>('/price'),
+  getBtcPrice: () => request<BtcPriceInfo>('/price'),
 };

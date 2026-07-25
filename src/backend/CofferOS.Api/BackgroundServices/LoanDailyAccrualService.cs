@@ -1,6 +1,7 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Treasury;
+using CofferOS.Domain.Common;
 using CofferOS.Domain.Events;
 using CofferOS.Domain.Treasury;
 using Microsoft.Extensions.DependencyInjection;

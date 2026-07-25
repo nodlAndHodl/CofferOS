@@ -18,8 +18,8 @@ public sealed class PriceUpdatedLoggingHandler : IDomainEventHandler<PriceUpdate
 
     public Task HandleAsync(PriceUpdatedEvent domainEvent, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Bitcoin price updated: {Price} USD via {Provider} at {Timestamp}",
-            domainEvent.PriceUsd, domainEvent.Provider, domainEvent.Timestamp);
+        _logger.LogInformation("Bitcoin price updated: {Price} USD via {Provider} at {OccurredOn}",
+            domainEvent.PriceUsd, domainEvent.Provider, domainEvent.OccurredOn);
         return Task.CompletedTask;
     }
 }

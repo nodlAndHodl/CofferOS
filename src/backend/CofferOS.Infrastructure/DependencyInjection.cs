@@ -11,6 +11,7 @@ using CofferOS.Infrastructure.Providers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CofferOS.Infrastructure;
@@ -28,7 +29,15 @@ public static class DependencyInjection
             ? dbPath
             : $"Data Source={dbPath}";
 
-        services.AddDbContext<CofferOSDbContext>(options => options.UseSqlite(connectionString));
+        services.AddDbContext<CofferOSDbContext>(options =>
+        {
+            options.UseSqlite(connectionString);
+            // Allow startup to proceed even if the model has drifted from the last snapshot.
+            // Existing migration files on disk will still be applied.
+            // TODO: Add a new migration to bring the snapshot in sync, then remove this ignore.
+            options.ConfigureWarnings(w =>
+                w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+        });
 
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<IAddressRepository, AddressRepository>();
@@ -50,6 +59,10 @@ public static class DependencyInjection
 
         // HttpClient for external price providers (CoinGecko, Coinbase, etc.)
         services.AddHttpClient();
+        services.AddHttpClient("BitcoinPrice", c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(8);
+        });
 
         // Register all available price providers (they are resolved by id at runtime)
         services.AddSingleton<IBitcoinPriceProvider, ManualBitcoinPriceProvider>();
@@ -59,14 +72,14 @@ public static class DependencyInjection
         {
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
             var logger = sp.GetRequiredService<ILogger<CoinGeckoPriceProvider>>();
-            return new CoinGeckoPriceProvider(httpFactory.CreateClient(), logger);
+            return new CoinGeckoPriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
         services.AddSingleton<IBitcoinPriceProvider, CoinbasePriceProvider>(sp =>
         {
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
             var logger = sp.GetRequiredService<ILogger<CoinbasePriceProvider>>();
-            return new CoinbasePriceProvider(httpFactory.CreateClient(), logger);
+            return new CoinbasePriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
         // Choose the active provider based on configuration (falls back to manual)

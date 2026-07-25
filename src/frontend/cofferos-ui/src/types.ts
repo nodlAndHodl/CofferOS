@@ -346,3 +346,11 @@ export interface TreasurySummary {
   priceProvider: string;
 }
 
+export interface BtcPriceInfo {
+  price: number | null;
+  providerId: string;
+  displayName: string;
+  lastUpdated?: string | null;
+  note?: string | null;
+}
+

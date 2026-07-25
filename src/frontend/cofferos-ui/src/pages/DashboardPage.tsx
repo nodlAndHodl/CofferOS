@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, Landmark, Server, Wallet as WalletIcon, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage, TreasurySummary } from '../types';
+import type { BtcPriceInfo, Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage, TreasurySummary } from '../types';
 import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
 import { formatBtc, formatDate, formatPercent, formatUsd, shorten } from '../lib/format';
@@ -54,6 +54,8 @@ export function DashboardPage() {
   const [activity, setActivity] = useState<RecentActivityPage | null>(null);
   const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
   const [treasuryLoading, setTreasuryLoading] = useState(true);
+  const [btcPrice, setBtcPrice] = useState<BtcPriceInfo | null>(null);
+  const [btcPriceLoading, setBtcPriceLoading] = useState(true);
 
   async function load() {
     try {
@@ -79,8 +81,23 @@ export function DashboardPage() {
     }
   }
 
+  async function loadBtcPrice() {
+    setBtcPriceLoading(true);
+    try {
+      setBtcPrice(await api.getBtcPrice());
+    } catch {
+      setBtcPrice(null);
+    } finally {
+      setBtcPriceLoading(false);
+    }
+  }
+
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    loadBtcPrice();
   }, []);
 
   useEffect(() => {
@@ -133,6 +150,37 @@ export function DashboardPage() {
         <StatCard icon={<Activity size={18} />} label="Wallets" value={String(data?.walletCount ?? 0)} />
         <NodeCard node={node} loading={nodeLoading} />
         <ElectrumCard electrum={electrum} loading={electrumLoading} />
+      </div>
+
+      {/* Bitcoin Price (from Price Engine) */}
+      <div className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Bitcoin Price</h2>
+        {btcPriceLoading ? (
+          <Card className="p-4"><div className="text-sm text-[var(--color-coffer-muted)]">Loading…</div></Card>
+        ) : (
+          <Card className="p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+              <div>
+                <div className="text-[var(--color-coffer-muted)] text-xs">Current BTC Price</div>
+                <div className="text-xl font-bold">{btcPrice?.price != null ? formatUsd(btcPrice.price) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[var(--color-coffer-muted)] text-xs">Provider</div>
+                <div>{btcPrice?.displayName ?? btcPrice?.providerId ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-[var(--color-coffer-muted)] text-xs">Last Updated</div>
+                <div>{btcPrice?.lastUpdated ? formatDate(btcPrice.lastUpdated) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[var(--color-coffer-muted)] text-xs">Status</div>
+                <div className="text-[var(--color-coffer-muted)]">
+                  {btcPrice?.note ?? (btcPrice?.providerId === 'manual' ? 'Using manually configured Bitcoin price.' : '—')}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Treasury summary */}
