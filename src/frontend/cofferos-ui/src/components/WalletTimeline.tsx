@@ -47,7 +47,7 @@ export function WalletTimeline({ walletId }: Props) {
   }, [walletId]);
 
   function startCreate() {
-    setEditing(null);
+    setEditing({ id: undefined, type: 'Annotation', occurredAt: '', title: '', isUserEvent: true });
     setForm({
       occurredAt: new Date().toISOString().slice(0, 16),
       title: '',
@@ -166,7 +166,9 @@ export function WalletTimeline({ walletId }: Props) {
       )}
 
       <div className="relative space-y-6 border-l border-[var(--color-coffer-border)] pl-6">
-        {timeline.entries.map((entry, index) => {
+        {[...timeline.entries]
+          .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+          .map((entry, index) => {
           const color = eventTypeColors[entry.type] ?? 'bg-[var(--color-coffer-bg)] text-[var(--color-coffer-muted)]';
           return (
             <div key={index} className="relative">
