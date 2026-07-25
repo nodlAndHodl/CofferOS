@@ -396,7 +396,7 @@ function AddressSection({ title, addresses }: { title: string; addresses: Addres
 function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved: () => void }) {
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState('');
-  const [sortKey, setSortKey] = useState<'outpoint' | 'address' | 'value' | 'confirmations' | 'date'>('outpoint');
+  const [sortKey, setSortKey] = useState<'outpoint' | 'address' | 'value' | 'confirmations'>('outpoint');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const [metaFilter, setMetaFilter] = useState('');
@@ -415,8 +415,7 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
     (u) =>
       (u.txId.toLowerCase().includes(filter.toLowerCase()) ||
         `${u.txId}:${u.vout}`.toLowerCase().includes(filter.toLowerCase()) ||
-        (u.address ?? '').toLowerCase().includes(filter.toLowerCase()) ||
-        formatDate(u.timestamp).toLowerCase().includes(filter.toLowerCase())) &&
+        (u.address ?? '').toLowerCase().includes(filter.toLowerCase())) &&
       matchesMetadata(`${u.txId}:${u.vout}`)
   );
 
@@ -434,9 +433,6 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
         break;
       case 'confirmations':
         cmp = a.confirmations - b.confirmations;
-        break;
-      case 'date':
-        cmp = new Date(a.timestamp ?? 0).getTime() - new Date(b.timestamp ?? 0).getTime();
         break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
@@ -471,7 +467,7 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by outpoint, address, or date..."
+          placeholder="Filter by outpoint or address..."
           className="w-full rounded border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm text-white outline-none focus:border-[var(--color-coffer-orange)]"
         />
         <input
@@ -489,7 +485,6 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
             {header('address', 'Address')}
             {header('value', 'Value')}
             {header('confirmations', 'Confirmations')}
-            {header('date', 'Date')}
             <th className="px-4 py-3">Metadata</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
@@ -523,7 +518,6 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
               <td className="px-4 py-2">
                 {u.confirmations > 0 ? u.confirmations : <Badge tone="default">mempool</Badge>}
               </td>
-              <td className="px-4 py-2">{formatDate(u.timestamp)}</td>
               <td className="px-4 py-2">
                 <UtxoMetadata wallet={wallet} txId={u.txId} vout={u.vout} onSaved={onNoteSaved} />
               </td>
