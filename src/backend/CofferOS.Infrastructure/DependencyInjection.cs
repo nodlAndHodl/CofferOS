@@ -62,54 +62,45 @@ public static class DependencyInjection
         services.AddHttpClient("BitcoinPrice", c =>
         {
             c.Timeout = TimeSpan.FromSeconds(8);
+            c.DefaultRequestHeaders.Add("Accept", "application/json");
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("CofferOS/1.0 (Bitcoin price fetcher; https://github.com/nodlAndHodl/CofferOS)");
         });
 
-        // Register all available price providers (they are resolved by id at runtime)
-        services.AddSingleton<IBitcoinPriceProvider, ManualBitcoinPriceProvider>();
-        services.AddSingleton<ManualBitcoinPriceProvider>(); // concrete for IMutable
+        // Register all available price providers as concrete singletons.
+        // They are resolved by concrete type to avoid circular IBitcoinPriceProvider resolution.
+        services.AddSingleton<ManualBitcoinPriceProvider>();
 
-        services.AddSingleton<IBitcoinPriceProvider, CoinGeckoPriceProvider>(sp =>
+        services.AddSingleton<CoinGeckoPriceProvider>(sp =>
         {
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
             var logger = sp.GetRequiredService<ILogger<CoinGeckoPriceProvider>>();
             return new CoinGeckoPriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
-        services.AddSingleton<IBitcoinPriceProvider, CoinbasePriceProvider>(sp =>
+        services.AddSingleton<CoinbasePriceProvider>(sp =>
         {
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
             var logger = sp.GetRequiredService<ILogger<CoinbasePriceProvider>>();
             return new CoinbasePriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
-        // Choose the active provider based on configuration (falls back to manual)
+        // Choose the active provider based on configuration (falls back to manual).
+        // Resolves by concrete type — never call GetServices<IBitcoinPriceProvider> here
+        // because this factory IS an IBitcoinPriceProvider registration and that would deadlock.
         services.AddSingleton<IBitcoinPriceProvider>(sp =>
         {
             var opts = sp.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().CurrentValue;
-            var all = sp.GetServices<IBitcoinPriceProvider>().ToList();
-
-            var selected = all.FirstOrDefault(p => string.Equals(p.ProviderId, opts.Provider, StringComparison.OrdinalIgnoreCase));
-            if (selected is not null) return selected;
-
-            // fallback to manual
-            return all.FirstOrDefault(p => p.ProviderId == "manual")
-                   ?? new ManualBitcoinPriceProvider();
+            var providerId = opts.Provider?.ToLowerInvariant() ?? "manual";
+            return providerId switch
+            {
+                "coingecko" => (IBitcoinPriceProvider)sp.GetRequiredService<CoinGeckoPriceProvider>(),
+                "coinbase" => sp.GetRequiredService<CoinbasePriceProvider>(),
+                _ => sp.GetRequiredService<ManualBitcoinPriceProvider>(),
+            };
         });
 
-        // Expose mutable source if the active one supports it (for manual overrides)
-        services.AddSingleton<IMutableBitcoinPriceSource>(sp =>
-        {
-            // Prefer the explicitly registered Manual one for writes
-            var manual = sp.GetService<ManualBitcoinPriceProvider>();
-            if (manual is not null) return manual;
-
-            // otherwise, if the current provider implements IMutable, use it
-            var current = sp.GetRequiredService<IBitcoinPriceProvider>();
-            if (current is IMutableBitcoinPriceSource m) return m;
-
-            // last resort: create a fresh manual holder
-            return new ManualBitcoinPriceProvider();
-        });
+        // Expose mutable source for manual price overrides
+        services.AddSingleton<IMutableBitcoinPriceSource>(sp => sp.GetRequiredService<ManualBitcoinPriceProvider>());
 
         // Application-level price orchestrator
         services.AddScoped<BitcoinPriceService>();

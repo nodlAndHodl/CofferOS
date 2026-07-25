@@ -107,20 +107,22 @@ public static class TreasuryEndpoints
             })
             .WithName("SetBtcPrice");
 
-        api.MapGet("/price", async (IBitcoinPriceProvider priceProvider, IBitcoinPriceHistoryRepository historyRepo, CancellationToken ct) =>
+        api.MapGet("/price", async (IBitcoinPriceProvider priceProvider, CancellationToken ct) =>
             {
                 var price = await priceProvider.GetCurrentPriceAsync(ct);
-                var latest = await historyRepo.GetLatestAsync(ct);
 
-                // Determine a simple source note for the UI/dashboard
                 string? note = null;
                 if (priceProvider.ProviderId == "manual")
                 {
                     note = "Using manually configured Bitcoin price.";
                 }
-                else if (latest is not null && latest.Provider != priceProvider.ProviderId)
+                else if (price is not null)
                 {
-                    note = "Using cached Bitcoin price.";
+                    note = $"Using live Bitcoin price from {priceProvider.DisplayName}.";
+                }
+                else
+                {
+                    note = "Bitcoin price is currently unavailable.";
                 }
 
                 return Results.Ok(new
@@ -128,7 +130,7 @@ public static class TreasuryEndpoints
                     price,
                     providerId = priceProvider.ProviderId,
                     displayName = priceProvider.DisplayName,
-                    lastUpdated = latest?.Timestamp,
+                    lastUpdated = priceProvider.LastUpdated,
                     note
                 });
             })

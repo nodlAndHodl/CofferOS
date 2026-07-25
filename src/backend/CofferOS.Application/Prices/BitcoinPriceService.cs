@@ -21,16 +21,12 @@ public sealed class BitcoinPriceService
     private readonly IOptionsMonitor<BitcoinPriceOptions> _options;
     private readonly ILogger<BitcoinPriceService> _logger;
 
-    // We resolve fetchers by id at runtime
-    private readonly IEnumerable<IBitcoinPriceProvider> _allProviders;
-
     public BitcoinPriceService(
         IBitcoinPriceProvider currentProvider,
         IMutableBitcoinPriceSource? mutable,
         IBitcoinPriceHistoryRepository history,
         IDomainEventDispatcher dispatcher,
         IOptionsMonitor<BitcoinPriceOptions> options,
-        IEnumerable<IBitcoinPriceProvider> allProviders,
         ILogger<BitcoinPriceService> logger)
     {
         _currentProvider = currentProvider;
@@ -38,7 +34,6 @@ public sealed class BitcoinPriceService
         _history = history;
         _dispatcher = dispatcher;
         _options = options;
-        _allProviders = allProviders;
         _logger = logger;
     }
 
@@ -67,14 +62,7 @@ public sealed class BitcoinPriceService
             return new RefreshResult(false, "Privacy Mode is enabled; no outbound requests.");
         }
 
-        var fetcher = ResolveFetcher(opts.Provider);
-        if (fetcher is null)
-        {
-            _logger.LogWarning("No price provider found for id '{Provider}'. Falling back to manual/cached.", opts.Provider);
-            return new RefreshResult(false, $"Provider '{opts.Provider}' is not available.");
-        }
-
-        var price = await fetcher.GetCurrentPriceAsync(ct);
+        var price = await _currentProvider.GetCurrentPriceAsync(ct);
         if (price is null || price <= 0)
         {
             return new RefreshResult(false, "Provider returned no usable price.");
@@ -83,7 +71,7 @@ public sealed class BitcoinPriceService
         var now = DateTimeOffset.UtcNow;
 
         // Persist history
-        var entry = new BitcoinPriceHistory(now, price.Value, fetcher.ProviderId);
+        var entry = new BitcoinPriceHistory(now, price.Value, _currentProvider.ProviderId);
         await _history.AddAsync(entry, ct);
 
         // Push into the current holder so IBitcoinPriceProvider returns it
@@ -97,18 +85,11 @@ public sealed class BitcoinPriceService
         }
 
         // Publish event
-        await _dispatcher.DispatchAsync(new[] { new PriceUpdatedEvent(price.Value, fetcher.ProviderId, now) }, ct);
+        await _dispatcher.DispatchAsync(new[] { new PriceUpdatedEvent(price.Value, _currentProvider.ProviderId, now) }, ct);
 
-        _logger.LogInformation("Bitcoin price updated: {Price} via {Provider}", price, fetcher.ProviderId);
+        _logger.LogInformation("Bitcoin price updated: {Price} via {Provider}", price, _currentProvider.ProviderId);
 
-        return new RefreshResult(true, null, price.Value, fetcher.ProviderId, now);
-    }
-
-    private IBitcoinPriceProvider? ResolveFetcher(string providerId)
-    {
-        // Match by ProviderId, case-insensitive
-        return _allProviders.FirstOrDefault(p =>
-            string.Equals(p.ProviderId, providerId, StringComparison.OrdinalIgnoreCase));
+        return new RefreshResult(true, null, price.Value, _currentProvider.ProviderId, now);
     }
 
     public sealed record RefreshResult(bool Success, string? Message, decimal? Price = null, string? Provider = null, DateTimeOffset? Timestamp = null);

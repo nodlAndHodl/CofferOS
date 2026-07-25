@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { api } from '../api/client';
 import { Button } from './ui';
@@ -22,11 +22,23 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
   const [paymentFrequency, setPaymentFrequency] = useState('Monthly');
   const [collateralAmountBtc, setCollateralAmountBtc] = useState(0);
   const [currentBtcPrice, setCurrentBtcPrice] = useState(100000);
-  const [warningLtv, setWarningLtv] = useState(0.8);
-  const [liquidationLtv, setLiquidationLtv] = useState(0.9);
+  const [warningLtvPercent, setWarningLtvPercent] = useState(80);
+  const [liquidationLtvPercent, setLiquidationLtvPercent] = useState(90);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getBtcPrice()
+      .then((info) => {
+        if (info.providerId !== 'manual' && info.price != null) {
+          setCurrentBtcPrice(info.price);
+        }
+      })
+      .catch(() => {
+        // leave the default if the price service is unavailable
+      });
+  }, []);
 
   async function submit() {
     setError(null);
@@ -34,11 +46,27 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
       setError('Name is required');
       return;
     }
-    if (currentBalance < 0 || collateralAmountBtc < 0 || currentBtcPrice < 0) {
-      setError('Amounts and price cannot be negative');
+    if (principalAmount <= 0) {
+      setError('Principal amount must be greater than 0');
       return;
     }
-    if (liquidationLtv <= warningLtv) {
+    if (currentBalance <= 0) {
+      setError('Current balance must be greater than 0');
+      return;
+    }
+    if (principalAmount >= currentBalance) {
+      setError('Principal amount must be lower than the current balance');
+      return;
+    }
+    if (currentBtcPrice < 0) {
+      setError('BTC price cannot be negative');
+      return;
+    }
+    if (collateralAmountBtc <= 0) {
+      setError('Collateral must be greater than 0 BTC');
+      return;
+    }
+    if (liquidationLtvPercent <= warningLtvPercent) {
       setError('Liquidation LTV must be greater than warning LTV');
       return;
     }
@@ -56,8 +84,8 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
         paymentFrequency,
         collateralAmountBtc,
         currentBtcPrice,
-        warningLtv,
-        liquidationLtv,
+        warningLtv: warningLtvPercent / 100,
+        liquidationLtv: liquidationLtvPercent / 100,
         notes: notes.trim() || undefined,
       });
       onCreated();
@@ -115,8 +143,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
               <input
                 ref={dateInputRef}
                 type="date"
-                readOnly
-                className="w-full cursor-pointer bg-transparent px-3 py-2 pr-8 text-sm outline-none [&::-webkit-calendar-picker-indicator]:hidden"
+                className="w-full cursor-pointer bg-transparent px-3 py-2 pr-8 text-sm outline-none text-[var(--color-coffer-text)] [color-scheme:dark] accent-[var(--color-coffer-orange)] caret-[var(--color-coffer-orange)] [&::-webkit-calendar-picker-indicator]:hidden"
                 value={loanStartDate}
                 onChange={(e) => setLoanStartDate(e.target.value)}
                 onClick={(e) => {
@@ -202,13 +229,13 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Warning LTV (e.g. 0.80)</label>
-            <input type="number" step="0.01" className={inputClass} value={warningLtv} onChange={(e) => setWarningLtv(parseFloat(e.target.value) || 0)} />
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Warning LTV % (e.g. 80)</label>
+            <input type="number" step="0.01" className={inputClass} value={warningLtvPercent} onChange={(e) => setWarningLtvPercent(parseFloat(e.target.value) || 0)} />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Liquidation LTV (e.g. 0.90)</label>
-            <input type="number" step="0.01" className={inputClass} value={liquidationLtv} onChange={(e) => setLiquidationLtv(parseFloat(e.target.value) || 0)} />
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Liquidation LTV % (e.g. 90)</label>
+            <input type="number" step="0.01" className={inputClass} value={liquidationLtvPercent} onChange={(e) => setLiquidationLtvPercent(parseFloat(e.target.value) || 0)} />
           </div>
 
           <div className="md:col-span-2">

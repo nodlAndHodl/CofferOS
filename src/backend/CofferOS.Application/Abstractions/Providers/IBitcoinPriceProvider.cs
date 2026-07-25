@@ -18,6 +18,12 @@ public interface IBitcoinPriceProvider
     /// Price is expected in the provider's native fiat currency (typically USD).
     /// </summary>
     Task<decimal?> GetCurrentPriceAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The UTC time the current price value was last successfully set or fetched.
+    /// Null if no price has ever been available.
+    /// </summary>
+    DateTimeOffset? LastUpdated { get; }
 }
 
 /// <summary>

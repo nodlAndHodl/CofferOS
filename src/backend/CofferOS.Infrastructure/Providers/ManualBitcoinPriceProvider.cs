@@ -10,9 +10,12 @@ namespace CofferOS.Infrastructure.Providers;
 public sealed class ManualBitcoinPriceProvider : IMutableBitcoinPriceSource
 {
     private decimal? _price;
+    private DateTimeOffset? _lastUpdated;
 
     public string ProviderId => "manual";
     public string DisplayName => "Manual Entry";
+
+    public DateTimeOffset? LastUpdated => _lastUpdated;
 
     public Task<decimal?> GetCurrentPriceAsync(CancellationToken cancellationToken = default)
         => Task.FromResult(_price);
@@ -22,5 +25,6 @@ public sealed class ManualBitcoinPriceProvider : IMutableBitcoinPriceSource
         if (price < 0)
             throw new ArgumentException("Price cannot be negative.", nameof(price));
         _price = price;
+        _lastUpdated = DateTimeOffset.UtcNow;
     }
 }

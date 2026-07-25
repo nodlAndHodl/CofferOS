@@ -79,6 +79,21 @@ export function LoanDetailPage() {
     if (!id || !loan) return;
     setSaving(true);
     setError(null);
+    if (form.principalAmount <= 0) {
+      setError('Principal amount must be greater than 0');
+      setSaving(false);
+      return;
+    }
+    if (form.currentBalance <= 0) {
+      setError('Current balance must be greater than 0');
+      setSaving(false);
+      return;
+    }
+    if (form.principalAmount >= form.currentBalance) {
+      setError('Principal amount must be lower than the current balance');
+      setSaving(false);
+      return;
+    }
     try {
       const payload = {
         name: form.name,
@@ -229,8 +244,7 @@ export function LoanDetailPage() {
                   <input
                     ref={startDateRef}
                     type="date"
-                    readOnly
-                    className="w-full cursor-pointer bg-transparent px-3 py-2 pr-8 text-sm outline-none [&::-webkit-calendar-picker-indicator]:hidden"
+                    className="w-full cursor-pointer bg-transparent px-3 py-2 pr-8 text-sm outline-none text-[var(--color-coffer-text)] [color-scheme:dark] accent-[var(--color-coffer-orange)] caret-[var(--color-coffer-orange)] [&::-webkit-calendar-picker-indicator]:hidden"
                     value={form.loanStartDate}
                     onChange={(e) => setForm({ ...form, loanStartDate: e.target.value })}
                     onClick={(e) => {
