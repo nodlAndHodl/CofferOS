@@ -24,6 +24,12 @@ services:
       Integrations__ElectrumServer__AddressScanCount: "${ELECTRUM_ADDRESS_SCAN_COUNT:-100}"
       Integrations__ElectrumServer__BatchSize: "${ELECTRUM_BATCH_SIZE:-100}"
       Integrations__ElectrumServer__TimeoutSeconds: "${ELECTRUM_TIMEOUT_SECONDS:-60}"
+
+      # Bitcoin Price Engine (loans, treasury, dashboard valuation).
+      BitcoinPrice__Enabled: "${BITCOIN_PRICE_ENABLED:-true}"
+      BitcoinPrice__PrivacyMode: "${BITCOIN_PRICE_PRIVACY_MODE:-false}"
+      BitcoinPrice__PollIntervalSeconds: "${BITCOIN_PRICE_POLL_INTERVAL_SECONDS:-300}"
+      BitcoinPrice__Provider: "${BITCOIN_PRICE_PROVIDER:-manual}"
     volumes:
       - cofferos-data:/data
     depends_on:
@@ -34,6 +40,8 @@ services:
     build:
       context: .
       dockerfile: docker/tor.Dockerfile
+    ports:
+      - "127.0.0.1:9051:9051"
     restart: unless-stopped
 
   frontend:

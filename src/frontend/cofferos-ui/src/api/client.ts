@@ -1,4 +1,30 @@
-import type { CreateNoteRequest, CreateTimelineEventRequest, Dashboard, ElectrumStatus, ImportWalletRequest, NodeStatus, Note, ObjectMetadata, RecentActivityPage, TimelineEvent, UpdateMetadataRequest, UpdateNoteRequest, UpdateTimelineEventRequest, WalletDetail, WalletSummary, WalletTimeline } from '../types';
+import type {
+  BtcPriceInfo,
+  CreateLoanRequest,
+  CreateNoteRequest,
+  CreateTimelineEventRequest,
+  Dashboard,
+  ElectrumStatus,
+  ImportWalletRequest,
+  LoanDetail,
+  LoanSummary,
+  NodeStatus,
+  Note,
+  ObjectMetadata,
+  RecentActivityPage,
+  SetBtcPriceRequest,
+  TimelineEvent,
+  TreasurySummary,
+  UpdateLoanBalanceRequest,
+  UpdateLoanCollateralRequest,
+  UpdateLoanRequest,
+  UpdateMetadataRequest,
+  UpdateNoteRequest,
+  UpdateTimelineEventRequest,
+  WalletDetail,
+  WalletSummary,
+  WalletTimeline,
+} from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
@@ -70,4 +96,21 @@ export const api = {
 
   getNodeStatus: () => request<NodeStatus>('/node/status'),
   getElectrumStatus: () => request<ElectrumStatus>('/electrum/status'),
+
+  // Treasury / Loans
+  getTreasurySummary: () => request<TreasurySummary>('/treasury/summary'),
+  listLoans: () => request<LoanSummary[]>('/loans'),
+  getLoan: (id: string) => request<LoanDetail>(`/loans/${id}`),
+  createLoan: (payload: CreateLoanRequest) =>
+    request<LoanSummary>('/loans', { method: 'POST', body: JSON.stringify(payload) }),
+  updateLoan: (id: string, payload: UpdateLoanRequest) =>
+    request<LoanDetail>(`/loans/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteLoan: (id: string) => request<void>(`/loans/${id}`, { method: 'DELETE' }),
+  updateLoanBalance: (id: string, payload: UpdateLoanBalanceRequest) =>
+    request<LoanDetail>(`/loans/${id}/balance`, { method: 'PUT', body: JSON.stringify(payload) }),
+  updateLoanCollateral: (id: string, payload: UpdateLoanCollateralRequest) =>
+    request<LoanDetail>(`/loans/${id}/collateral`, { method: 'PUT', body: JSON.stringify(payload) }),
+  setBtcPrice: (payload: SetBtcPriceRequest) =>
+    request<{ price: number }>('/price', { method: 'POST', body: JSON.stringify(payload) }),
+  getBtcPrice: () => request<BtcPriceInfo>('/price'),
 };

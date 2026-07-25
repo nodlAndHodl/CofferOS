@@ -22,6 +22,8 @@ builder.Services.AddBitcoinCoreIntegration(builder.Configuration);
 builder.Services.AddElectrumServerIntegration(builder.Configuration);
 
 builder.Services.AddHostedService<ElectrumBlockListenerHostedService>();
+builder.Services.AddHostedService<LoanDailyAccrualService>();
+builder.Services.AddHostedService<PriceRefreshHostedService>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -62,5 +64,6 @@ if (app.Environment.IsDevelopment())
 app.UseCors(CorsPolicy);
 
 app.MapCofferOsEndpoints();
+app.MapTreasuryEndpoints();
 
 app.Run();

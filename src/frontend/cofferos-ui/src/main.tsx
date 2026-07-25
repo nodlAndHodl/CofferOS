@@ -5,6 +5,9 @@ import { Layout } from './components/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { WalletsPage } from './pages/WalletsPage';
 import { WalletDetailPage } from './pages/WalletDetailPage';
+import { TreasuryPage } from './pages/TreasuryPage';
+import { LoanDetailPage } from './pages/LoanDetailPage';
+// Note: TreasuryPage and LoanDetailPage are intentionally imported for the /treasury routes (Phase 1).
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
@@ -13,6 +16,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/" element={<DashboardPage />} />
         <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/wallets/:id" element={<WalletDetailPage />} />
+        <Route path="/treasury" element={<TreasuryPage />} />
+        <Route path="/treasury/:id" element={<LoanDetailPage />} />
       </Routes>
     </Layout>
   </BrowserRouter>,

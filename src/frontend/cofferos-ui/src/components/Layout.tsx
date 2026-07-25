@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Shield, Wallet } from 'lucide-react';
+import { Landmark, LayoutDashboard, Shield, Wallet } from 'lucide-react';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -36,6 +36,16 @@ export function Layout({ children }: { children: ReactNode }) {
             }
           >
             <Wallet size={18} /> Wallets
+          </NavLink>
+          <NavLink
+            to="/treasury"
+            className={({ isActive }: { isActive: boolean }) =>
+              isActive
+                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
+                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
+            }
+          >
+            <Landmark size={18} /> Treasury
           </NavLink>
         </nav>
 

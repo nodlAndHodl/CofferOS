@@ -11,5 +11,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CofferOS.Infrastructure.Tests/CofferOS.Infrastructure.Tests.csproj" />
+    <Project Path="tests/CofferOS.Application.Tests/CofferOS.Application.Tests.csproj" />
   </Folder>
 </Solution>
