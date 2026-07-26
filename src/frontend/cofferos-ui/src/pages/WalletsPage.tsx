@@ -6,12 +6,14 @@ import type { WalletSummary } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { ImportWalletModal } from '../components/ImportWalletModal';
 import { formatBtc } from '../lib/format';
+import { useWalletNotifications } from '../hooks/useWalletNotifications';
 
 export function WalletsPage() {
   const [wallets, setWallets] = useState<WalletSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [rescanningWallets, setRescanningWallets] = useState<Set<string>>(new Set());
 
   async function load() {
     setLoading(true);
@@ -25,6 +27,32 @@ export function WalletsPage() {
       setLoading(false);
     }
   }
+
+  useWalletNotifications({
+    onRescanStarted: (walletId: string) => {
+      console.log('Rescan started for wallet:', walletId);
+      setRescanningWallets((prev) => new Set(prev).add(walletId));
+    },
+    onRescanCompleted: (walletId: string) => {
+      console.log('Rescan completed for wallet:', walletId);
+      setRescanningWallets((prev) => {
+        const next = new Set(prev);
+        next.delete(walletId);
+        return next;
+      });
+      console.log('Reloading wallet list...');
+      load();
+    },
+    onRescanFailed: (walletId: string, error: string) => {
+      console.log('Rescan failed for wallet:', walletId, 'Error:', error);
+      setRescanningWallets((prev) => {
+        const next = new Set(prev);
+        next.delete(walletId);
+        return next;
+      });
+      setError(`Rescan failed for wallet: ${error}`);
+    },
+  });
 
   useEffect(() => {
     load();
@@ -57,6 +85,7 @@ export function WalletsPage() {
                   <span className="font-semibold">{w.name}</span>
                   <div className="flex items-center gap-2">
                     <Badge tone="orange">{w.network}</Badge>
+                    {rescanningWallets.has(w.id) && <Badge tone="default">rescanning...</Badge>}
                     <button
                       onClick={(e) => {
                         e.preventDefault();

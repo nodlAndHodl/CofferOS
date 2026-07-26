@@ -105,6 +105,17 @@ public interface ILoanPaymentRepository
     void Remove(LoanPayment payment);
 }
 
+/// <summary>Read/write access to loan price snapshots for historical LTV analysis.</summary>
+public interface ILoanPriceSnapshotRepository
+{
+    Task<IReadOnlyList<LoanPriceSnapshot>> GetByLoanAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LoanPriceSnapshot>> GetByLoanInRangeAsync(Guid loanId, DateTimeOffset startDate, DateTimeOffset endDate, CancellationToken cancellationToken = default);
+    Task<LoanPriceSnapshot?> GetLatestByLoanAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task AddAsync(LoanPriceSnapshot snapshot, CancellationToken cancellationToken = default);
+    Task AddRangeAsync(IEnumerable<LoanPriceSnapshot> snapshots, CancellationToken cancellationToken = default);
+    void Remove(LoanPriceSnapshot snapshot);
+}
+
 /// <summary>Transactional boundary. Committing also dispatches buffered domain events.</summary>
 public interface IUnitOfWork
 {

@@ -15,7 +15,8 @@ public sealed record CreateLoanRequest(
     decimal CurrentBtcPrice,
     decimal WarningLtv,
     decimal LiquidationLtv,
-    string? Notes);
+    string? Notes,
+    string InterestPaymentSchedule = "Accruing");
 
 /// <summary>Request to update an existing loan.</summary>
 public sealed record UpdateLoanRequest(
@@ -32,16 +33,8 @@ public sealed record UpdateLoanRequest(
     decimal CurrentBtcPrice,
     decimal WarningLtv,
     decimal LiquidationLtv,
-    string? Notes);
-
-/// <summary>Request to update just the balance (repayment or draw).</summary>
-public sealed record UpdateLoanBalanceRequest(decimal CurrentBalance);
-
-/// <summary>Request to update collateral and/or price.</summary>
-public sealed record UpdateLoanCollateralRequest(decimal CollateralAmountBtc, decimal CurrentBtcPrice);
-
-/// <summary>Request to set the BTC price manually.</summary>
-public sealed record SetBtcPriceRequest(decimal Price);
+    string? Notes,
+    string InterestPaymentSchedule = "Accruing");
 
 /// <summary>Loan summary for list views.</summary>
 public sealed record LoanSummaryDto(
@@ -78,6 +71,7 @@ public sealed record LoanDetailDto(
     DateTimeOffset LoanStartDate,
     int? LoanTermMonths,
     string PaymentFrequency,
+    string InterestPaymentSchedule,
     decimal CollateralAmountBtc,
     decimal CurrentBtcPrice,
     decimal CurrentCollateralValue,
@@ -102,3 +96,18 @@ public sealed record TreasurySummaryDto(
     LoanSummaryDto? HighestRiskLoan,
     decimal? CurrentBtcPrice,
     string PriceProvider);
+
+/// <summary>Historical price snapshot for a loan.</summary>
+public sealed record LoanPriceSnapshotDto(
+    DateTimeOffset SnapshotDate,
+    decimal PriceUsd,
+    decimal CurrentBalance,
+    decimal CollateralValue,
+    decimal Ltv);
+
+/// <summary>Historical price data for a loan with calculated LTV.</summary>
+public sealed record LoanHistoricalDataDto(
+    Guid LoanId,
+    DateTimeOffset StartDate,
+    DateTimeOffset EndDate,
+    IReadOnlyList<LoanPriceSnapshotDto> Snapshots);

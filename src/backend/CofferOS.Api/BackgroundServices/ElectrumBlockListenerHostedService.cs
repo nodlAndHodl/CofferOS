@@ -28,6 +28,10 @@ public sealed class ElectrumBlockListenerHostedService : BackgroundService
         // Give the rest of the app time to finish startup before opening the long-lived connection.
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
+        // Deduplication: track the last block we processed to avoid handling duplicate notifications from Electrum.
+        string? lastBlockHash = null;
+        long lastBlockHeight = -1;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             await using var scope = _services.CreateAsyncScope();
@@ -45,6 +49,16 @@ public sealed class ElectrumBlockListenerHostedService : BackgroundService
             {
                 await electrum.ListenForNewBlocksAsync(async (height, blockHash, ct) =>
                 {
+                    // Skip duplicate notifications from Electrum (same height and hash).
+                    if (lastBlockHeight == height && lastBlockHash == blockHash)
+                    {
+                        _logger.LogDebug("Skipping duplicate block notification for height {Height}", height);
+                        return;
+                    }
+
+                    lastBlockHeight = height;
+                    lastBlockHash = blockHash;
+
                     _logger.LogInformation("Dispatching new block event for height {Height}", height);
 
                     await using var dispatchScope = _services.CreateAsyncScope();

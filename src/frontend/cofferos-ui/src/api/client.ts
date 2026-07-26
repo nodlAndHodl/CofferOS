@@ -7,16 +7,14 @@ import type {
   ElectrumStatus,
   ImportWalletRequest,
   LoanDetail,
+  LoanHistoricalData,
   LoanSummary,
   NodeStatus,
   Note,
   ObjectMetadata,
   RecentActivityPage,
-  SetBtcPriceRequest,
   TimelineEvent,
   TreasurySummary,
-  UpdateLoanBalanceRequest,
-  UpdateLoanCollateralRequest,
   UpdateLoanRequest,
   UpdateMetadataRequest,
   UpdateNoteRequest,
@@ -106,11 +104,6 @@ export const api = {
   updateLoan: (id: string, payload: UpdateLoanRequest) =>
     request<LoanDetail>(`/loans/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteLoan: (id: string) => request<void>(`/loans/${id}`, { method: 'DELETE' }),
-  updateLoanBalance: (id: string, payload: UpdateLoanBalanceRequest) =>
-    request<LoanDetail>(`/loans/${id}/balance`, { method: 'PUT', body: JSON.stringify(payload) }),
-  updateLoanCollateral: (id: string, payload: UpdateLoanCollateralRequest) =>
-    request<LoanDetail>(`/loans/${id}/collateral`, { method: 'PUT', body: JSON.stringify(payload) }),
-  setBtcPrice: (payload: SetBtcPriceRequest) =>
-    request<{ price: number }>('/price', { method: 'POST', body: JSON.stringify(payload) }),
   getBtcPrice: () => request<BtcPriceInfo>('/price'),
+  getLoanHistoricalData: (id: string) => request<LoanHistoricalData>(`/loans/${id}/historical`),
 };

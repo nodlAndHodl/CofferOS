@@ -21,6 +21,10 @@ public sealed class BitcoinPriceService
     private readonly IOptionsMonitor<BitcoinPriceOptions> _options;
     private readonly ILogger<BitcoinPriceService> _logger;
 
+    // Deduplication: track the last refresh time to avoid concurrent duplicate calls
+    private DateTimeOffset _lastRefreshTime = DateTimeOffset.MinValue;
+    private readonly object _refreshLock = new();
+
     public BitcoinPriceService(
         IBitcoinPriceProvider currentProvider,
         IMutableBitcoinPriceSource? mutable,
@@ -47,6 +51,7 @@ public sealed class BitcoinPriceService
     /// <summary>
     /// Performs one refresh cycle using the configured provider (unless PrivacyMode or disabled).
     /// On success: persist history, update mutable holder, publish PriceUpdatedEvent.
+    /// Includes deduplication to prevent concurrent calls from multiple services.
     /// </summary>
     public async Task<RefreshResult> RefreshAsync(CancellationToken ct = default)
     {
@@ -60,6 +65,17 @@ public sealed class BitcoinPriceService
         if (opts.PrivacyMode)
         {
             return new RefreshResult(false, "Privacy Mode is enabled; no outbound requests.");
+        }
+
+        // Deduplication: skip if a refresh happened within the last 5 seconds
+        lock (_refreshLock)
+        {
+            var nowForDedup = DateTimeOffset.UtcNow;
+            if ((nowForDedup - _lastRefreshTime).TotalSeconds < 5)
+            {
+                return new RefreshResult(false, "Price refresh already occurred within the last 5 seconds.");
+            }
+            _lastRefreshTime = nowForDedup;
         }
 
         var price = await _currentProvider.GetCurrentPriceAsync(ct);

@@ -2,8 +2,10 @@ using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Prices;
+using CofferOS.Domain.Common;
 using CofferOS.Domain.Events;
 using CofferOS.Domain.Prices;
+using CofferOS.Infrastructure.Providers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -16,6 +18,7 @@ public class BitcoinPriceServiceTests
     {
         public string ProviderId { get; }
         public string DisplayName { get; }
+        public DateTimeOffset? LastUpdated { get; }
         public decimal? NextPrice { get; set; }
 
         public FakeProvider(string id, string name, decimal? price)
@@ -23,6 +26,7 @@ public class BitcoinPriceServiceTests
             ProviderId = id;
             DisplayName = name;
             NextPrice = price;
+            LastUpdated = DateTimeOffset.UtcNow;
         }
 
         public Task<decimal?> GetCurrentPriceAsync(CancellationToken cancellationToken = default)
@@ -57,14 +61,31 @@ public class BitcoinPriceServiceTests
         }
     }
 
-    private static BitcoinPriceOptions MakeOptions(string provider = "manual", bool enabled = true, bool privacy = false, int interval = 300)
+    private static BitcoinPriceOptions MakeOptions(bool enabled = true, bool privacy = false)
         => new BitcoinPriceOptions
         {
             Enabled = enabled,
             PrivacyMode = privacy,
-            PollIntervalSeconds = interval,
-            Provider = provider
+            PollIntervalSeconds = 300,
+            Provider = "manual"
         };
+
+    private static BitcoinPriceService CreateService(
+        IBitcoinPriceProvider currentProvider,
+        IBitcoinPriceHistoryRepository? history = null,
+        IDomainEventDispatcher? dispatcher = null,
+        IMutableBitcoinPriceSource? mutable = null,
+        BitcoinPriceOptions? options = null)
+    {
+        var opts = options ?? MakeOptions();
+        return new BitcoinPriceService(
+            currentProvider,
+            mutable,
+            history ?? new FakeHistoryRepo(),
+            dispatcher ?? new FakeDispatcher(),
+            new TestOptionsMonitor<BitcoinPriceOptions>(opts),
+            NullLogger<BitcoinPriceService>.Instance);
+    }
 
     [Fact]
     public async Task RefreshAsync_WhenDisabled_DoesNotCallProvider()
@@ -72,17 +93,8 @@ public class BitcoinPriceServiceTests
         var manual = new ManualBitcoinPriceProvider();
         var history = new FakeHistoryRepo();
         var dispatcher = new FakeDispatcher();
-        var opts = Options.Create(MakeOptions(enabled: false));
-        var optsMonitor = new TestOptionsMonitor<BitcoinPriceOptions>(opts.Value);
 
-        var service = new BitcoinPriceService(
-            manual,
-            manual,
-            history,
-            dispatcher,
-            optsMonitor,
-            new[] { (IBitcoinPriceProvider)manual },
-            NullLogger<BitcoinPriceService>.Instance);
+        var service = CreateService(manual, history, dispatcher, manual, MakeOptions(enabled: false));
 
         var result = await service.RefreshAsync();
 
@@ -98,19 +110,9 @@ public class BitcoinPriceServiceTests
         var manual = new ManualBitcoinPriceProvider();
         var history = new FakeHistoryRepo();
         var dispatcher = new FakeDispatcher();
-        var opts = Options.Create(MakeOptions(privacy: true));
-        var optsMonitor = new TestOptionsMonitor<BitcoinPriceOptions>(opts.Value);
-
         var fake = new FakeProvider("coingecko", "CoinGecko", 123456m);
 
-        var service = new BitcoinPriceService(
-            manual,
-            manual,
-            history,
-            dispatcher,
-            optsMonitor,
-            new[] { (IBitcoinPriceProvider)manual, fake },
-            NullLogger<BitcoinPriceService>.Instance);
+        var service = CreateService(fake, history, dispatcher, manual, MakeOptions(privacy: true));
 
         var result = await service.RefreshAsync();
 
@@ -126,19 +128,9 @@ public class BitcoinPriceServiceTests
         var manual = new ManualBitcoinPriceProvider();
         var history = new FakeHistoryRepo();
         var dispatcher = new FakeDispatcher();
-        var opts = Options.Create(MakeOptions(provider: "coingecko"));
-        var optsMonitor = new TestOptionsMonitor<BitcoinPriceOptions>(opts.Value);
-
         var fake = new FakeProvider("coingecko", "CoinGecko", 98765.43m);
 
-        var service = new BitcoinPriceService(
-            manual,
-            manual,
-            history,
-            dispatcher,
-            optsMonitor,
-            new[] { (IBitcoinPriceProvider)manual, fake },
-            NullLogger<BitcoinPriceService>.Instance);
+        var service = CreateService(fake, history, dispatcher, manual);
 
         var result = await service.RefreshAsync();
 
@@ -168,19 +160,7 @@ public class BitcoinPriceServiceTests
         var manual = new ManualBitcoinPriceProvider();
         manual.SetPrice(111222.33m);
 
-        var history = new FakeHistoryRepo();
-        var dispatcher = new FakeDispatcher();
-        var opts = Options.Create(MakeOptions());
-        var optsMonitor = new TestOptionsMonitor<BitcoinPriceOptions>(opts.Value);
-
-        var service = new BitcoinPriceService(
-            manual,
-            manual,
-            history,
-            dispatcher,
-            optsMonitor,
-            new[] { (IBitcoinPriceProvider)manual },
-            NullLogger<BitcoinPriceService>.Instance);
+        var service = CreateService(manual);
 
         var price = await service.GetCurrentPriceAsync();
 

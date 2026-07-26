@@ -45,7 +45,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
             }
           >
-            <Landmark size={18} /> Treasury
+            <Landmark size={18} /> Loans
           </NavLink>
         </nav>
 

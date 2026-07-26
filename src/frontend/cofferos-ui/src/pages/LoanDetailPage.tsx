@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Edit2 } from 'lucide-react';
 import { api } from '../api/client';
-import type { LoanDetail } from '../types';
+import type { LoanDetail, LoanHistoricalData } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
+import { LoanHistoricalChart } from '../components/LoanHistoricalChart';
 import { formatDate, formatPercent, formatUsd } from '../lib/format';
 
 const inputClass =
@@ -13,6 +14,7 @@ export function LoanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const startDateRef = useRef<HTMLInputElement>(null);
   const [loan, setLoan] = useState<LoanDetail | null>(null);
+  const [historicalData, setHistoricalData] = useState<LoanHistoricalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -32,6 +34,7 @@ export function LoanDetailPage() {
     loanStartDate: new Date().toISOString().slice(0, 10),
     loanTermMonths: undefined as number | undefined,
     paymentFrequency: 'Monthly',
+    interestPaymentSchedule: 'Accruing',
     collateralAmountBtc: 0,
     currentBtcPrice: 0,
     // LTVs stored as percent in the UI (e.g. 80 for 80%)
@@ -58,6 +61,7 @@ export function LoanDetailPage() {
         loanStartDate: startDateStr,
         loanTermMonths: d.loanTermMonths ?? undefined,
         paymentFrequency: d.paymentFrequency,
+        interestPaymentSchedule: d.interestPaymentSchedule,
         collateralAmountBtc: d.collateralAmountBtc,
         currentBtcPrice: d.currentBtcPrice,
         warningLtvPercent: Math.round((d.warningLtv ?? 0.8) * 100 * 100) / 100,
@@ -75,6 +79,17 @@ export function LoanDetailPage() {
     load();
   }, [id]);
 
+  useEffect(() => {
+    if (!id) return;
+    api.getLoanHistoricalData(id)
+      .then((data) => {
+        setHistoricalData(data);
+      })
+      .catch((e) => {
+        console.error('Failed to load historical data:', e);
+      });
+  }, [id]);
+
   async function save() {
     if (!id || !loan) return;
     setSaving(true);
@@ -84,22 +99,12 @@ export function LoanDetailPage() {
       setSaving(false);
       return;
     }
-    if (form.currentBalance <= 0) {
-      setError('Current balance must be greater than 0');
-      setSaving(false);
-      return;
-    }
-    if (form.principalAmount >= form.currentBalance) {
-      setError('Principal amount must be lower than the current balance');
-      setSaving(false);
-      return;
-    }
     try {
       const payload = {
         name: form.name,
         lender: form.lender || undefined,
         principalAmount: form.principalAmount,
-        currentBalance: form.currentBalance,
+        currentBalance: form.principalAmount,
         interestRate: form.interestRatePercent / 100,
         interestType: form.interestType,
         loanStartDate: new Date(form.loanStartDate).toISOString(),
@@ -110,6 +115,7 @@ export function LoanDetailPage() {
         warningLtv: form.warningLtvPercent / 100,
         liquidationLtv: form.liquidationLtvPercent / 100,
         notes: form.notes || undefined,
+        interestPaymentSchedule: form.interestPaymentSchedule,
       };
       const updated = await api.updateLoan(id, payload);
       setLoan(updated);
@@ -118,35 +124,6 @@ export function LoanDetailPage() {
       setError(e instanceof Error ? e.message : 'Failed to save');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function updateBalance(newBalance: number) {
-    if (!id) return;
-    try {
-      const updated = await api.updateLoanBalance(id, { currentBalance: newBalance });
-      setLoan(updated);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update balance');
-    }
-  }
-
-  async function updateCollateral(collateral: number, price: number) {
-    if (!id) return;
-    try {
-      const updated = await api.updateLoanCollateral(id, { collateralAmountBtc: collateral, currentBtcPrice: price });
-      setLoan(updated);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update collateral');
-    }
-  }
-
-  async function setGlobalPrice(price: number) {
-    try {
-      await api.setBtcPrice({ price });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to set price');
     }
   }
 
@@ -200,9 +177,6 @@ export function LoanDetailPage() {
               <Field label="Principal Amount (USD)">
                 <input type="number" className={inputClass} value={form.principalAmount} onChange={(e) => setForm({ ...form, principalAmount: parseFloat(e.target.value) || 0 })} />
               </Field>
-              <Field label="Current Balance (USD)">
-                <input type="number" className={inputClass} value={form.currentBalance} onChange={(e) => setForm({ ...form, currentBalance: parseFloat(e.target.value) || 0 })} />
-              </Field>
               <Field label="Interest Rate (%)">
                 <input type="number" step="0.01" className={inputClass} value={form.interestRatePercent} onChange={(e) => setForm({ ...form, interestRatePercent: parseFloat(e.target.value) || 0 })} />
               </Field>
@@ -220,6 +194,12 @@ export function LoanDetailPage() {
                   <option>Quarterly</option>
                   <option>Annually</option>
                   <option>OneTime</option>
+                </select>
+              </Field>
+              <Field label="Interest Payment Schedule">
+                <select className={inputClass} value={form.interestPaymentSchedule} onChange={(e) => setForm({ ...form, interestPaymentSchedule: e.target.value })}>
+                  <option value="Accruing">Accruing (compounds daily)</option>
+                  <option value="InterestOnly">Interest-Only (no accrual)</option>
                 </select>
               </Field>
               <Field label="Term (months, optional)">
@@ -309,6 +289,7 @@ export function LoanDetailPage() {
                       loanStartDate: startDateStr,
                       loanTermMonths: loan.loanTermMonths ?? undefined,
                       paymentFrequency: loan.paymentFrequency,
+                      interestPaymentSchedule: loan.interestPaymentSchedule,
                       collateralAmountBtc: loan.collateralAmountBtc,
                       currentBtcPrice: loan.currentBtcPrice,
                       warningLtvPercent: Math.round((loan.warningLtv ?? 0.8) * 100 * 100) / 100,
@@ -327,6 +308,13 @@ export function LoanDetailPage() {
               <Row label="Started" value={formatDate(loan.loanStartDate)} />
               {loan.loanTermMonths && <Row label="Term" value={`${loan.loanTermMonths} months`} />}
               <Row label="Payment Frequency" value={loan.paymentFrequency} />
+              <Row label="Payment Type" value={loan.interestPaymentSchedule === 'InterestOnly' ? 'Interest-Only' : 'Accruing'} />
+              {loan.interestPaymentSchedule === 'InterestOnly' && (
+                <Row 
+                  label="Monthly Interest Payment" 
+                  value={formatUsd((loan.principalAmount * loan.interestRate) / 12)} 
+                />
+              )}
               <Row label="Warning LTV" value={formatPercent(loan.warningLtv)} />
               <Row label="Liquidation LTV" value={formatPercent(loan.liquidationLtv)} />
             </div>
@@ -352,40 +340,25 @@ export function LoanDetailPage() {
         </Card>
       </div>
 
-      {/* Quick actions */}
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Update Balance</div>
-          <div className="flex gap-2">
-            <input type="number" className={inputClass} defaultValue={loan.currentBalance} id="bal" />
-            <Button onClick={() => {
-              const el = document.getElementById('bal') as HTMLInputElement;
-              const v = parseFloat(el.value);
-              if (!isNaN(v)) updateBalance(v);
-            }}>Update</Button>
-          </div>
-          <p className="mt-1 text-xs text-[var(--color-coffer-muted)]">Enter new outstanding principal balance.</p>
+      {/* Historical LTV Chart */}
+      {historicalData && historicalData.snapshots.length > 0 && (
+        <Card className="mt-6 p-4">
+          <div className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Historical LTV & Price</div>
+          <LoanHistoricalChart 
+            data={historicalData} 
+            warningLtv={loan.warningLtv}
+            liquidationLtv={loan.liquidationLtv}
+          />
         </Card>
-
-        <Card className="p-4">
-          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Update Collateral / Price</div>
-          <div className="flex gap-2">
-            <input type="number" step="0.0001" className={inputClass + ' w-28'} defaultValue={loan.collateralAmountBtc} id="col" />
-            <input type="number" className={inputClass + ' flex-1'} defaultValue={loan.currentBtcPrice} id="pr" />
-            <Button onClick={() => {
-              const c = parseFloat((document.getElementById('col') as HTMLInputElement).value);
-              const p = parseFloat((document.getElementById('pr') as HTMLInputElement).value);
-              if (!isNaN(c) && !isNaN(p)) updateCollateral(c, p);
-            }}>Update</Button>
-          </div>
-          <div className="mt-2">
-            <Button variant="ghost" onClick={() => {
-              const p = parseFloat((document.getElementById('pr') as HTMLInputElement).value);
-              if (!isNaN(p)) setGlobalPrice(p);
-            }}>Apply price to all active loans</Button>
-          </div>
+      )}
+      {historicalData && historicalData.snapshots.length === 0 && (
+        <Card className="mt-6 p-4">
+          <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Historical LTV & Price</div>
+          <p className="text-sm text-[var(--color-coffer-muted)]">
+            No historical price data is available yet. The next successful price fetch will populate this chart.
+          </p>
         </Card>
-      </div>
+      )}
 
       {/* Notes */}
       <Card className="mt-4 p-4">

@@ -9,6 +9,7 @@ import { InlineMetadataEditor } from '../components/InlineMetadataEditor';
 import { Tooltip } from '../components/Tooltip';
 import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
 import { formatBtc, formatDate, shorten } from '../lib/format';
+import { useWalletNotifications } from '../hooks/useWalletNotifications';
 
 type Tab = 'addresses' | 'utxos' | 'transactions' | 'descriptors' | 'timeline';
 
@@ -28,6 +29,16 @@ export function WalletDetailPage() {
       .then(setWallet)
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'));
   }
+
+  useWalletNotifications({
+    onRescanCompleted: (walletId: string) => {
+      console.log('Rescan completed for wallet:', walletId, 'Current wallet ID:', id);
+      if (id === walletId) {
+        console.log('Refreshing wallet data...');
+        refresh();
+      }
+    },
+  });
 
   useEffect(() => {
     if (!id) return;

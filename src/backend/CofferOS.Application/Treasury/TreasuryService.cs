@@ -1,6 +1,7 @@
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
+using CofferOS.Application.Prices;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Treasury;
 
@@ -14,25 +15,28 @@ public sealed class TreasuryService
 {
     private readonly ILoanRepository _loans;
     private readonly ILoanPaymentRepository _payments;
+    private readonly ILoanPriceSnapshotRepository _priceSnapshots;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBitcoinPriceProvider _priceProvider;
-    private readonly IMutableBitcoinPriceSource? _mutablePriceSource;
     private readonly ILoanAccrualService _accrual;
+    private readonly CoinbaseHistoricalPriceService _historicalPriceService;
 
     public TreasuryService(
         ILoanRepository loans,
         ILoanPaymentRepository payments,
+        ILoanPriceSnapshotRepository priceSnapshots,
         IUnitOfWork unitOfWork,
         IBitcoinPriceProvider priceProvider,
         ILoanAccrualService accrual,
-        IMutableBitcoinPriceSource? mutablePriceSource = null)
+        CoinbaseHistoricalPriceService historicalPriceService)
     {
         _loans = loans;
         _payments = payments;
+        _priceSnapshots = priceSnapshots;
         _unitOfWork = unitOfWork;
         _priceProvider = priceProvider;
         _accrual = accrual;
-        _mutablePriceSource = mutablePriceSource;
+        _historicalPriceService = historicalPriceService;
     }
 
     public async Task<IReadOnlyList<LoanSummaryDto>> GetSummariesAsync(CancellationToken cancellationToken = default)
@@ -61,12 +65,38 @@ public sealed class TreasuryService
     {
         var interestType = ParseInterestType(request.InterestType);
         var paymentFreq = ParsePaymentFrequency(request.PaymentFrequency);
+        var interestPaymentSchedule = ParseInterestPaymentSchedule(request.InterestPaymentSchedule);
+
+        // Calculate balance based on loan start date and interest accrual
+        decimal calculatedBalance;
+        var isBalanceOverridden = false;
+
+        if (interestPaymentSchedule == InterestPaymentSchedule.InterestOnly)
+        {
+            // Interest-only loans don't accrue interest on the balance
+            calculatedBalance = request.PrincipalAmount;
+        }
+        else
+        {
+            // Accruing loans: calculate balance from principal + accrued interest since loan start date
+            var daysSinceStart = (DateTimeOffset.UtcNow.Date - request.LoanStartDate.Date).Days;
+            if (daysSinceStart > 0)
+            {
+                var dailyRate = request.InterestRate / 365m;
+                var accruedInterest = request.PrincipalAmount * dailyRate * daysSinceStart;
+                calculatedBalance = request.PrincipalAmount + accruedInterest;
+            }
+            else
+            {
+                calculatedBalance = request.PrincipalAmount;
+            }
+        }
 
         var loan = Loan.Create(
             request.Name,
             request.Lender,
             request.PrincipalAmount,
-            request.CurrentBalance,
+            calculatedBalance,
             request.InterestRate,
             interestType,
             request.LoanStartDate,
@@ -76,7 +106,13 @@ public sealed class TreasuryService
             request.CurrentBtcPrice,
             request.WarningLtv,
             request.LiquidationLtv,
-            request.Notes);
+            request.Notes,
+            interestPaymentSchedule);
+
+        if (isBalanceOverridden)
+        {
+            loan.UpdateBalance(request.CurrentBalance, isOverride: true);
+        }
 
         await _loans.AddAsync(loan, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -91,12 +127,51 @@ public sealed class TreasuryService
 
         var interestType = ParseInterestType(request.InterestType);
         var paymentFreq = ParsePaymentFrequency(request.PaymentFrequency);
+        var interestPaymentSchedule = ParseInterestPaymentSchedule(request.InterestPaymentSchedule);
+
+        // Determine if the balance was explicitly edited in the form.
+        var isBalanceOverridden = loan.BalanceOverridden ||
+            Math.Abs(request.CurrentBalance - loan.CurrentBalance) >= 0.01m;
+
+        // Recalculate the balance whenever the interest payment schedule changes.
+        var scheduleChanged = loan.InterestPaymentSchedule != interestPaymentSchedule;
+        var shouldRecalculateBalance = !isBalanceOverridden || scheduleChanged;
+
+        decimal calculatedBalance;
+        if (shouldRecalculateBalance)
+        {
+            // Use the same calculation logic as CreateAsync
+            if (interestPaymentSchedule == InterestPaymentSchedule.InterestOnly)
+            {
+                // Interest-only loans don't accrue interest on the balance
+                calculatedBalance = request.PrincipalAmount;
+            }
+            else
+            {
+                // Accruing loans: calculate balance from principal + accrued interest since loan start date
+                var daysSinceStart = (DateTimeOffset.UtcNow.Date - request.LoanStartDate.Date).Days;
+                if (daysSinceStart > 0)
+                {
+                    var dailyRate = request.InterestRate / 365m;
+                    var accruedInterest = request.PrincipalAmount * dailyRate * daysSinceStart;
+                    calculatedBalance = request.PrincipalAmount + accruedInterest;
+                }
+                else
+                {
+                    calculatedBalance = request.PrincipalAmount;
+                }
+            }
+        }
+        else
+        {
+            calculatedBalance = request.CurrentBalance;
+        }
 
         loan.UpdateDetails(
             request.Name,
             request.Lender,
             request.PrincipalAmount,
-            request.CurrentBalance,
+            calculatedBalance,
             request.InterestRate,
             interestType,
             request.LoanStartDate,
@@ -106,54 +181,41 @@ public sealed class TreasuryService
             request.CurrentBtcPrice,
             request.WarningLtv,
             request.LiquidationLtv,
-            request.Notes);
+            request.Notes,
+            interestPaymentSchedule);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDetail(loan);
-    }
-
-    public async Task<LoanDetailDto?> UpdateBalanceAsync(Guid id, UpdateLoanBalanceRequest request, CancellationToken cancellationToken = default)
-    {
-        var loan = await _loans.GetByIdAsync(id, cancellationToken);
-        if (loan is null) return null;
-
-        loan.UpdateBalance(request.CurrentBalance);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDetail(loan);
-    }
-
-    public async Task<LoanDetailDto?> UpdateCollateralAsync(Guid id, UpdateLoanCollateralRequest request, CancellationToken cancellationToken = default)
-    {
-        var loan = await _loans.GetByIdAsync(id, cancellationToken);
-        if (loan is null) return null;
-
-        loan.UpdateCollateral(request.CollateralAmountBtc, request.CurrentBtcPrice);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDetail(loan);
-    }
-
-    public async Task<bool> SetBtcPriceAsync(SetBtcPriceRequest request, CancellationToken cancellationToken = default)
-    {
-        if (_mutablePriceSource is null)
+        if (shouldRecalculateBalance)
         {
-            // If no mutable source, we can still update all active loans' cached price directly.
-            // For Phase 1 with Manual provider, mutable source should exist.
-            // Fall back to updating active loans' price snapshots.
+            // Reset accrual state to the new start date so previously accrued interest from a different start date is cleared.
+            loan.ResetAccrual(request.LoanStartDate);
+
+            if (interestPaymentSchedule == InterestPaymentSchedule.Accruing)
+            {
+                var daysSinceStart = (DateTimeOffset.UtcNow.Date - request.LoanStartDate.Date).Days;
+                if (daysSinceStart > 0)
+                {
+                    var dailyRate = request.InterestRate / 365m;
+                    var accruedInterest = request.PrincipalAmount * dailyRate * daysSinceStart;
+                    loan.AddAccruedInterest(accruedInterest, DateTimeOffset.UtcNow);
+                }
+                else
+                {
+                    loan.RefreshCurrentBalance();
+                }
+            }
+            // For interest-only loans, ResetAccrual already set balance to principal, no further action needed.
         }
         else
         {
-            _mutablePriceSource.SetPrice(request.Price);
-        }
-
-        // Also update the cached price on active loans so their calculations reflect the new price.
-        var active = await _loans.GetActiveAsync(cancellationToken);
-        foreach (var loan in active)
-        {
-            loan.UpdatePrice(request.Price);
+            loan.UpdateBalance(calculatedBalance, isOverride: true);
         }
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
-        return true;
+
+        // Return a fresh accrual snapshot so the UI gets the updated accrued interest immediately.
+        var payments = await _payments.GetByLoanAsync(loan.Id, cancellationToken);
+        var snap = await _accrual.CalculateAsync(loan, payments, null, cancellationToken);
+        return ToDetail(loan, snap);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -173,7 +235,6 @@ public sealed class TreasuryService
         decimal totalBalance = 0m;
         decimal totalCollateralBtc = 0m;
         decimal totalCollateralValue = 0m;
-        decimal sumLtvWeighted = 0m; // for simple avg we will average the LTVs directly
 
         LoanSummaryDto? highestRisk = null;
         decimal? highestLtv = null;
@@ -275,6 +336,7 @@ public sealed class TreasuryService
             loan.LoanStartDate,
             loan.LoanTermMonths,
             loan.PaymentFrequency.ToString(),
+            loan.InterestPaymentSchedule.ToString(),
             loan.CollateralAmountBtc,
             loan.CurrentBtcPrice,
             collateralValue,
@@ -300,5 +362,87 @@ public sealed class TreasuryService
     {
         if (Enum.TryParse<PaymentFrequency>(value, true, out var f)) return f;
         throw new ArgumentException($"Invalid payment frequency: {value}");
+    }
+
+    private static InterestPaymentSchedule ParseInterestPaymentSchedule(string value)
+    {
+        if (Enum.TryParse<InterestPaymentSchedule>(value, true, out var s)) return s;
+        throw new ArgumentException($"Invalid interest payment schedule: {value}");
+    }
+
+    /// <summary>
+    /// Fetches historical price data for a loan and returns calculated historical LTV.
+    /// Populates the loan_price_snapshots table if not already present.
+    /// </summary>
+    public async Task<LoanHistoricalDataDto> GetHistoricalDataAsync(Guid loanId, CancellationToken cancellationToken = default)
+    {
+        var loan = await _loans.GetByIdAsync(loanId, cancellationToken);
+        if (loan is null)
+            throw new ArgumentException("Loan not found.", nameof(loanId));
+
+        var endDate = DateTimeOffset.UtcNow;
+        var startDate = loan.LoanStartDate;
+
+        // Ensure we have snapshots for every day in the requested range so the graph updates when dates change.
+        var allSnapshots = await _priceSnapshots.GetByLoanAsync(loanId, cancellationToken);
+        var existingDates = allSnapshots.Select(s => s.SnapshotDate.Date).ToHashSet();
+
+        var requestedEnd = endDate.Date;
+        var requestedStart = startDate.Date;
+        var requiredDates = Enumerable.Range(0, (requestedEnd - requestedStart).Days + 1)
+            .Select(d => requestedStart.AddDays(d))
+            .ToList();
+
+        var missingDates = requiredDates.Where(d => !existingDates.Contains(d)).ToList();
+
+        if (missingDates.Count > 0)
+        {
+            var fetchStart = missingDates.Min();
+            var fetchEnd = missingDates.Max();
+
+            var prices = await _historicalPriceService.GetDailyPricesAsync(fetchStart, fetchEnd, cancellationToken);
+            if (prices.Count > 0)
+            {
+                var newSnapshots = new List<LoanPriceSnapshot>();
+                foreach (var (date, price) in prices)
+                {
+                    if (missingDates.Contains(date.Date))
+                    {
+                        newSnapshots.Add(new LoanPriceSnapshot(loanId, date, price, "coinbase"));
+                    }
+                }
+
+                if (newSnapshots.Count > 0)
+                {
+                    await _priceSnapshots.AddRangeAsync(newSnapshots, cancellationToken);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                    allSnapshots = allSnapshots.Concat(newSnapshots).ToList();
+                }
+            }
+        }
+
+        // Filter to the requested window and sort ascending
+        var snapshotsInRange = allSnapshots
+            .Where(s => s.SnapshotDate.Date >= requestedStart && s.SnapshotDate.Date <= requestedEnd)
+            .OrderBy(s => s.SnapshotDate)
+            .ToList();
+
+        // Build response DTOs with calculated LTV
+        var snapshotDtos = new List<LoanPriceSnapshotDto>();
+        foreach (var snapshot in snapshotsInRange)
+        {
+            var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, snapshot.PriceUsd);
+            var ltv = LoanCalculator.CalculateCurrentLtv(loan.CurrentBalance, collateralValue);
+
+            snapshotDtos.Add(new LoanPriceSnapshotDto(
+                snapshot.SnapshotDate,
+                snapshot.PriceUsd,
+                loan.CurrentBalance,
+                collateralValue,
+                ltv));
+        }
+
+        return new LoanHistoricalDataDto(loanId, startDate, endDate, snapshotDtos);
     }
 }

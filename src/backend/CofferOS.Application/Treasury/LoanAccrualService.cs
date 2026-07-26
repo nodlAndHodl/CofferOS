@@ -37,13 +37,21 @@ public sealed class LoanAccrualService : ILoanAccrualService
         // Start with stored accrued interest
         decimal accrued = Math.Max(0m, loan.AccruedInterest);
 
-        // Add any additional accrual since LastAccruedOn (or start)
-        var lastAccrual = loan.LastAccruedOn?.Date ?? startDate;
-        int daysSinceLast = (asOfDate - lastAccrual).Days;
-        if (daysSinceLast > 0)
+        // Add any additional accrual since LastAccruedOn (or start), but only for accruing loans
+        if (loan.InterestPaymentSchedule == InterestPaymentSchedule.Accruing)
         {
-            decimal dailyRate = loan.InterestRate / 365m;
-            accrued += outstandingPrincipal * dailyRate * daysSinceLast;
+            var lastAccrual = loan.LastAccruedOn?.Date ?? startDate;
+            int daysSinceLast = (asOfDate - lastAccrual).Days;
+            if (daysSinceLast > 0)
+            {
+                decimal dailyRate = loan.InterestRate / 365m;
+                accrued += outstandingPrincipal * dailyRate * daysSinceLast;
+            }
+        }
+        else
+        {
+            // Interest-only loans don't accrue interest on the balance
+            accrued = 0m;
         }
 
         decimal currentBalance = outstandingPrincipal + Math.Max(0m, accrued);
@@ -67,6 +75,10 @@ public sealed class LoanAccrualService : ILoanAccrualService
     public async Task<decimal> AccrueSimpleDailyInterestAsync(Loan loan, DateTimeOffset asOf, CancellationToken cancellationToken = default)
     {
         if (loan.Status != LoanStatus.Active)
+            return 0m;
+
+        // Skip accrual for interest-only loans; they don't accumulate interest on the balance
+        if (loan.InterestPaymentSchedule == InterestPaymentSchedule.InterestOnly)
             return 0m;
 
         var payments = await _payments.GetByLoanAsync(loan.Id, cancellationToken);
