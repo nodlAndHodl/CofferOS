@@ -254,6 +254,7 @@ export interface CreateLoanRequest {
   warningLtv: number;
   liquidationLtv: number;
   notes?: string;
+  interestPaymentSchedule?: string;
 }
 
 export interface UpdateLoanRequest {
@@ -271,19 +272,7 @@ export interface UpdateLoanRequest {
   warningLtv: number;
   liquidationLtv: number;
   notes?: string;
-}
-
-export interface UpdateLoanBalanceRequest {
-  currentBalance: number;
-}
-
-export interface UpdateLoanCollateralRequest {
-  collateralAmountBtc: number;
-  currentBtcPrice: number;
-}
-
-export interface SetBtcPriceRequest {
-  price: number;
+  interestPaymentSchedule?: string;
 }
 
 export interface LoanSummary {
@@ -320,6 +309,7 @@ export interface LoanDetail {
   loanStartDate: string;
   loanTermMonths?: number | null;
   paymentFrequency: string;
+  interestPaymentSchedule: string;
   collateralAmountBtc: number;
   currentBtcPrice: number;
   currentCollateralValue: number;
@@ -352,5 +342,20 @@ export interface BtcPriceInfo {
   displayName: string;
   lastUpdated?: string | null;
   note?: string | null;
+}
+
+export interface LoanPriceSnapshot {
+  snapshotDate: string;
+  priceUsd: number;
+  currentBalance: number;
+  collateralValue: number;
+  ltv: number;
+}
+
+export interface LoanHistoricalData {
+  loanId: string;
+  startDate: string;
+  endDate: string;
+  snapshots: LoanPriceSnapshot[];
 }
 

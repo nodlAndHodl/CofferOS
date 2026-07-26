@@ -509,6 +509,9 @@ namespace CofferOS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("InterestPaymentSchedule")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("LoanStartDate")
                         .HasColumnType("INTEGER");
 

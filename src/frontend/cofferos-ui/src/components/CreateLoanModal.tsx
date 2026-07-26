@@ -13,13 +13,13 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
   const [name, setName] = useState('');
   const [lender, setLender] = useState('');
   const [principalAmount, setPrincipalAmount] = useState(0);
-  const [currentBalance, setCurrentBalance] = useState(0);
   // Store as percent in the UI (e.g. 5 for 5%) so users think in normal terms.
   const [interestRatePercent, setInterestRatePercent] = useState(5);
   const [interestType, setInterestType] = useState('Fixed');
   const [loanStartDate, setLoanStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [loanTermMonths, setLoanTermMonths] = useState<number | undefined>(12);
   const [paymentFrequency, setPaymentFrequency] = useState('Monthly');
+  const [interestPaymentSchedule, setInterestPaymentSchedule] = useState('Accruing');
   const [collateralAmountBtc, setCollateralAmountBtc] = useState(0);
   const [currentBtcPrice, setCurrentBtcPrice] = useState(100000);
   const [warningLtvPercent, setWarningLtvPercent] = useState(80);
@@ -40,6 +40,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
       });
   }, []);
 
+
   async function submit() {
     setError(null);
     if (!name.trim()) {
@@ -48,14 +49,6 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
     }
     if (principalAmount <= 0) {
       setError('Principal amount must be greater than 0');
-      return;
-    }
-    if (currentBalance <= 0) {
-      setError('Current balance must be greater than 0');
-      return;
-    }
-    if (principalAmount >= currentBalance) {
-      setError('Principal amount must be lower than the current balance');
       return;
     }
     if (currentBtcPrice < 0) {
@@ -76,7 +69,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
         name: name.trim(),
         lender: lender.trim() || undefined,
         principalAmount,
-        currentBalance,
+        currentBalance: principalAmount,
         interestRate: interestRatePercent / 100,
         interestType,
         loanStartDate: new Date(loanStartDate).toISOString(),
@@ -87,6 +80,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
         warningLtv: warningLtvPercent / 100,
         liquidationLtv: liquidationLtvPercent / 100,
         notes: notes.trim() || undefined,
+        interestPaymentSchedule,
       });
       onCreated();
       onClose();
@@ -183,10 +177,6 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
             <input type="number" className={inputClass} value={principalAmount} onChange={(e) => setPrincipalAmount(parseFloat(e.target.value) || 0)} />
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Current Balance (USD)</label>
-            <input type="number" className={inputClass} value={currentBalance} onChange={(e) => setCurrentBalance(parseFloat(e.target.value) || 0)} />
-          </div>
 
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Interest Rate (%)</label>
@@ -210,6 +200,14 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
               <option>Quarterly</option>
               <option>Annually</option>
               <option>OneTime</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Interest Payment Schedule</label>
+            <select className={inputClass} value={interestPaymentSchedule} onChange={(e) => setInterestPaymentSchedule(e.target.value)}>
+              <option value="Accruing">Accruing (compounds daily)</option>
+              <option value="InterestOnly">Interest-Only (no accrual)</option>
             </select>
           </div>
 

@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<ILoanRepository, LoanRepository>();
         services.AddScoped<ILoanPaymentRepository, LoanPaymentRepository>();
+        services.AddScoped<ILoanPriceSnapshotRepository, LoanPriceSnapshotRepository>();
         services.AddScoped<IBitcoinPriceHistoryRepository, BitcoinPriceHistoryRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
@@ -77,13 +78,6 @@ public static class DependencyInjection
             return new CoinGeckoPriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
-        services.AddSingleton<CoinbasePriceProvider>(sp =>
-        {
-            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
-            var logger = sp.GetRequiredService<ILogger<CoinbasePriceProvider>>();
-            return new CoinbasePriceProvider(httpFactory.CreateClient("BitcoinPrice"), logger);
-        });
-
         // Choose the active provider based on configuration (falls back to manual).
         // Resolves by concrete type — never call GetServices<IBitcoinPriceProvider> here
         // because this factory IS an IBitcoinPriceProvider registration and that would deadlock.
@@ -94,7 +88,6 @@ public static class DependencyInjection
             return providerId switch
             {
                 "coingecko" => (IBitcoinPriceProvider)sp.GetRequiredService<CoinGeckoPriceProvider>(),
-                "coinbase" => sp.GetRequiredService<CoinbasePriceProvider>(),
                 _ => sp.GetRequiredService<ManualBitcoinPriceProvider>(),
             };
         });
@@ -104,6 +97,14 @@ public static class DependencyInjection
 
         // Application-level price orchestrator
         services.AddScoped<BitcoinPriceService>();
+
+        // Historical price fetching service (Coinbase candles support arbitrary date ranges on free tier)
+        services.AddScoped<CoinbaseHistoricalPriceService>(sp =>
+        {
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var logger = sp.GetRequiredService<ILogger<CoinbaseHistoricalPriceService>>();
+            return new CoinbaseHistoricalPriceService(httpFactory.CreateClient("BitcoinPrice"), logger);
+        });
 
         return services;
     }

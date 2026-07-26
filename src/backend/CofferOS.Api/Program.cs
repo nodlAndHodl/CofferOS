@@ -1,6 +1,8 @@
 using CofferOS.Api.BackgroundServices;
 using CofferOS.Api.Endpoints;
+using CofferOS.Api.WebSockets;
 using CofferOS.Application;
+using CofferOS.Application.Abstractions.Notifications;
 using CofferOS.Infrastructure;
 using CofferOS.Infrastructure.Persistence;
 using CofferOS.Integrations.BitcoinCore;
@@ -21,8 +23,15 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddBitcoinCoreIntegration(builder.Configuration);
 builder.Services.AddElectrumServerIntegration(builder.Configuration);
 
+// WebSocket notifications
+builder.Services.AddSingleton<NotificationHub>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IWalletNotificationService, WalletNotificationService>();
+builder.Services.AddScoped<ILoanNotificationService, LoanNotificationService>();
+
 builder.Services.AddHostedService<ElectrumBlockListenerHostedService>();
 builder.Services.AddHostedService<LoanDailyAccrualService>();
+builder.Services.AddHostedService<DailyPriceHistoryService>();
 builder.Services.AddHostedService<PriceRefreshHostedService>();
 
 builder.Services.AddEndpointsApiExplorer();
@@ -63,7 +72,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors(CorsPolicy);
 
+app.UseWebSockets();
+
 app.MapCofferOsEndpoints();
 app.MapTreasuryEndpoints();
+app.MapWebSocketEndpoints();
 
 app.Run();

@@ -107,3 +107,12 @@ public enum PaymentFrequency
     Annually = 4,
     OneTime = 5
 }
+
+/// <summary>Whether interest accrues or is paid on a fixed schedule.</summary>
+public enum InterestPaymentSchedule
+{
+    /// <summary>Interest accrues daily and compounds on the balance.</summary>
+    Accruing = 0,
+    /// <summary>Interest is paid on a fixed schedule (e.g., monthly); principal does not accrue interest.</summary>
+    InterestOnly = 1
+}

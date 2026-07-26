@@ -24,7 +24,8 @@ public sealed class Loan : Entity
         decimal currentBtcPrice,
         decimal warningLtv,
         decimal liquidationLtv,
-        string? notes)
+        string? notes,
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
     {
         Name = name;
         Lender = lender;
@@ -36,6 +37,7 @@ public sealed class Loan : Entity
         LoanStartDate = loanStartDate;
         LoanTermMonths = loanTermMonths;
         PaymentFrequency = paymentFrequency;
+        InterestPaymentSchedule = interestPaymentSchedule;
         CollateralAmountBtc = collateralAmountBtc;
         CurrentBtcPrice = currentBtcPrice;
         WarningLtv = warningLtv;
@@ -67,6 +69,7 @@ public sealed class Loan : Entity
     public DateTimeOffset LoanStartDate { get; private set; }
     public int? LoanTermMonths { get; private set; }
     public PaymentFrequency PaymentFrequency { get; private set; }
+    public InterestPaymentSchedule InterestPaymentSchedule { get; private set; }
 
     // Accrual engine state (source of truth for interest)
     public decimal AccruedInterest { get; private set; }
@@ -79,6 +82,9 @@ public sealed class Loan : Entity
     // Thresholds (as decimals, e.g. 0.70 = 70%)
     public decimal WarningLtv { get; private set; }
     public decimal LiquidationLtv { get; private set; }
+
+    // Balance override tracking
+    public bool BalanceOverridden { get; private set; }
 
     // Audit
     public DateTimeOffset CreatedAt { get; private set; }
@@ -99,7 +105,8 @@ public sealed class Loan : Entity
         decimal currentBtcPrice,
         decimal warningLtv,
         decimal liquidationLtv,
-        string? notes)
+        string? notes,
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Loan name is required.", nameof(name));
@@ -132,7 +139,8 @@ public sealed class Loan : Entity
             currentBtcPrice,
             warningLtv,
             liquidationLtv,
-            notes?.Trim());
+            notes?.Trim(),
+            interestPaymentSchedule);
     }
 
     public void UpdateDetails(
@@ -149,7 +157,8 @@ public sealed class Loan : Entity
         decimal currentBtcPrice,
         decimal warningLtv,
         decimal liquidationLtv,
-        string? notes)
+        string? notes,
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Loan name is required.", nameof(name));
@@ -177,6 +186,7 @@ public sealed class Loan : Entity
         LoanStartDate = loanStartDate;
         LoanTermMonths = loanTermMonths;
         PaymentFrequency = paymentFrequency;
+        InterestPaymentSchedule = interestPaymentSchedule;
         CollateralAmountBtc = collateralAmountBtc;
         CurrentBtcPrice = currentBtcPrice;
         WarningLtv = warningLtv;
@@ -185,11 +195,12 @@ public sealed class Loan : Entity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void UpdateBalance(decimal newBalance)
+    public void UpdateBalance(decimal newBalance, bool isOverride = false)
     {
         if (newBalance < 0)
             throw new ArgumentException("Balance cannot be negative.", nameof(newBalance));
         CurrentBalance = newBalance;
+        BalanceOverridden = isOverride;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
@@ -255,6 +266,15 @@ public sealed class Loan : Entity
     public void RefreshCurrentBalance()
     {
         CurrentBalance = PrincipalAmount + Math.Max(0, AccruedInterest);
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Resets accrual state (used when start date/principal changes and balance is not overridden).</summary>
+    public void ResetAccrual(DateTimeOffset asOf)
+    {
+        AccruedInterest = 0m;
+        LastAccruedOn = asOf;
+        CurrentBalance = PrincipalAmount;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

@@ -35,6 +35,7 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<TimelineEvent> TimelineEvents => Set<TimelineEvent>();
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
+    public DbSet<LoanPriceSnapshot> LoanPriceSnapshots => Set<LoanPriceSnapshot>();
     public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
@@ -208,6 +209,7 @@ public sealed class CofferOSDbContext : DbContext
             b.Property(x => x.InterestRate).HasPrecision(18, 8);
             b.Property(x => x.InterestType).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.PaymentFrequency).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.InterestPaymentSchedule).HasConversion<int>();
             b.Property(x => x.CollateralAmountBtc).HasPrecision(18, 8);
             b.Property(x => x.CurrentBtcPrice).HasPrecision(18, 8);
             b.Property(x => x.WarningLtv).HasPrecision(18, 8);
@@ -229,6 +231,18 @@ public sealed class CofferOSDbContext : DbContext
             b.Property(x => x.Notes).HasMaxLength(2000);
             b.HasIndex(x => x.LoanId);
             b.HasIndex(x => x.PaymentDate);
+        });
+
+        modelBuilder.Entity<LoanPriceSnapshot>(b =>
+        {
+            b.ToTable("loan_price_snapshots");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.LoanId);
+            b.Property(x => x.PriceUsd).HasPrecision(18, 8);
+            b.Property(x => x.Source).IsRequired().HasMaxLength(50);
+            b.HasIndex(x => x.LoanId);
+            b.HasIndex(x => x.SnapshotDate);
+            b.HasIndex(x => new { x.LoanId, x.SnapshotDate });
         });
 
         modelBuilder.Entity<CofferOS.Domain.Prices.BitcoinPriceHistory>(b =>
