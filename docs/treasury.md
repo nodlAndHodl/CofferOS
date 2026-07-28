@@ -2,6 +2,8 @@
 
 CofferOS distinguishes between **holdings** (assets owned), **collateral** (assets pledged), and **liabilities** (loans). This document defines the domain model and aggregation services that power the treasury dashboard.
 
+**Key principle:** Total holdings are the sum of wallet balances and collateral amounts (additive). Collateral is separate Bitcoin held at lenders and is not subtracted from wallet balances. Available Bitcoin equals the full wallet balances.
+
 ## Domain Concepts
 
 ### Holding
@@ -18,7 +20,7 @@ A Bitcoin position owned by the user. Holdings are aggregated from multiple sour
 A holding is not tied to a specific wallet. It represents ownership regardless of custody mechanism.
 
 ### Collateral
-Bitcoin that is pledged against a loan. Collateral is still owned Bitcoin; it is simply unavailable for other uses. Collateral is calculated as the sum of all active loan collateral amounts.
+Bitcoin that is pledged against a loan. Collateral is still owned Bitcoin, held in custody at the lender. It is tracked as a distinct holding category and is additive to total holdings. Collateral is calculated as the sum of all active loan collateral amounts. It is not subtracted from wallet balances; wallets report their full balances as "available" in the holdings view.
 
 ### Loan
 A liability secured by Bitcoin collateral. Loans have:
@@ -33,10 +35,10 @@ A liability secured by Bitcoin collateral. Loans have:
 
 ### Treasury
 The aggregate view of all holdings, collateral, and loans. The treasury answers:
-1. How much Bitcoin do I own?
-2. How much of it is pledged as collateral?
-3. How healthy is my treasury?
-4. Is my infrastructure healthy?
+1. How much Bitcoin do I own in total? (wallets + collateral, additive)
+2. How much is held in wallets vs. pledged as collateral?
+3. How healthy is my loan portfolio? (balances, LTVs, risk)
+4. Is my infrastructure healthy? (node, Electrum)
 
 ## Service Architecture
 
@@ -48,11 +50,11 @@ DashboardController
         ▼
 IDashboardQueryService (orchestrator)
         │
-        ├── IHoldingsService
-        ├── ITreasuryService (existing, loan CRUD)
-        ├── ILoanAnalyticsService
-        ├── IMarketDataService (IBitcoinPriceProvider)
-        └── IInfrastructureService
+        ├── IHoldingsService (GetBreakdownAsync)
+        ├── DashboardService (wallets, balance, activity)
+        ├── IBitcoinPriceProvider
+        ├── ILoanRepository + ILoanPaymentRepository + ILoanAccrualService (for loan metrics)
+        └── (infrastructure and full analytics fetched separately as needed)
 ```
 
 ### IHoldingsService
@@ -62,23 +64,35 @@ Aggregates Bitcoin holdings from all sources.
 ```csharp
 public interface IHoldingsService
 {
-    Task<decimal> GetTotalBitcoinAsync();
-    Task<decimal> GetAvailableBitcoinAsync();
-    Task<decimal> GetCollateralBitcoinAsync();
-    Task<HoldingsBreakdown> GetBreakdownAsync();
+    Task<HoldingsSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<HoldingDto>> GetHoldingsAsync(CancellationToken cancellationToken = default);
+    Task<decimal> GetTotalBitcoinAsync(CancellationToken cancellationToken = default);
+    Task<decimal> GetAvailableBitcoinAsync(CancellationToken cancellationToken = default);
+    Task<decimal> GetCollateralBitcoinAsync(CancellationToken cancellationToken = default);
+    Task<HoldingsBreakdown> GetBreakdownAsync(CancellationToken cancellationToken = default);
 }
 ```
 
+**Holdings formulas (additive model):**
+
+- `TotalBitcoin` = Σ(wallet balances) + Σ(loan collateral amounts)
+- `AvailableBitcoin` = Σ(wallet balances) — full wallet holdings; collateral is not subtracted
+- `CollateralBitcoin` = Σ(loan collateral amounts)
+
+Collateral represents separate Bitcoin held in custody at the lender. It contributes to total holdings but does not reduce the "available" amount reported for wallets.
+
 **Responsibilities:**
-- Sum wallet balances (confirmed + unconfirmed)
-- Calculate collateral from active loans
-- Calculate available Bitcoin (total - collateral)
-- Return breakdown by source type
+- Sum all wallet balances (confirmed + unconfirmed)
+- Sum collateral from active loans
+- Compute totals using the additive model above
+- Return a category breakdown (Wallet Holdings, Collateral) and a flat list of holdings
 
 **Current implementation:**
 - Queries all wallets and sums their balances
-- Queries all active loans and sums their collateral
-- Calculates available as total - collateral
+- Queries all active loans and sums their collateral amounts
+- `TotalBitcoin` = wallets + collateral
+- `AvailableBitcoin` = wallets (full balance)
+- `CollateralBitcoin` = collateral
 
 **Future extensibility:**
 - Add new holding sources by implementing a `IHoldingSource` interface
@@ -140,18 +154,19 @@ Orchestrates all services to assemble the complete dashboard overview.
 ```csharp
 public interface IDashboardQueryService
 {
-    Task<TreasuryOverviewDto> GetOverviewAsync();
+    Task<DashboardOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default);
 }
 ```
 
 **Responsibilities:**
-- Call `IHoldingsService` for Bitcoin holdings
-- Call loan repository for active loan count
-- Call `ILoanAnalyticsService` for highest-risk loan
+- Call `IHoldingsService` for Bitcoin holdings (via `GetBreakdownAsync`)
+- Call `DashboardService` for wallet summaries, total balance, wallet count, and recent activity
+- Call loan repository for active loans; compute count, balances, LTVs, and highest-risk inline using payments + accrual service
 - Call `IBitcoinPriceProvider` for current BTC price
-- Call `IInfrastructureService` for infrastructure status
-- Assemble `TreasuryOverviewDto` with all data
+- Assemble `DashboardOverviewDto` with all data
 - Return single DTO to frontend
+
+Note: Loan analytics (risk, LTV calculations) and infrastructure status are computed or fetched separately where needed; they are not part of the single overview orchestration today.
 
 ## Data Flow
 
@@ -163,70 +178,68 @@ GET /api/dashboard/overview
 ### Backend Processing
 ```
 DashboardQueryService.GetOverviewAsync()
-  ├─ HoldingsService.GetBreakdownAsync()
+  ├─ DashboardService.GetAsync()
   │   ├─ WalletRepository.GetAllAsync()
-  │   └─ LoanRepository.GetActiveAsync()
+  │   └─ (activity, counts, balances)
+  │
+  ├─ HoldingsService.GetBreakdownAsync()
+  │   ├─ WalletRepository.GetAllAsync()      (wallet balances)
+  │   └─ LoanRepository.GetActiveAsync()     (collateral amounts)
   │
   ├─ LoanRepository.GetActiveAsync()
-  │   └─ (for each loan)
+  │   └─ (for each active loan)
   │       ├─ LoanPaymentRepository.GetByLoanAsync()
   │       └─ LoanAccrualService.CalculateAsync()
+  │          (compute balances, LTVs, identify highest-risk)
   │
-  ├─ LoanAnalyticsService.GetHighestRiskLoanAsync()
-  │   └─ (same as above)
-  │
-  ├─ BitcoinPriceProvider.GetCurrentPriceAsync()
-  │
-  └─ InfrastructureService.GetStatusAsync()
-      ├─ WalletRepository.GetAllAsync()
-      ├─ BitcoinNodeProvider.TestConnectionAsync()
-      ├─ BitcoinNodeProvider.GetBlockchainInfoAsync()
-      └─ ElectrumServerProvider.GetStatusAsync()
+  └─ BitcoinPriceProvider.GetCurrentPriceAsync()
 ```
 
 ### Response
 ```json
 {
-  "totalBitcoin": 5.182,
-  "availableBitcoin": 0.479,
+  "totalBitcoin": 9.885,
+  "availableBitcoin": 5.182,
   "collateralBitcoin": 4.703,
   "bitcoinPriceUsd": 65000,
-  "totalValueUsd": 336670,
+  "totalValueUsd": 642525,
   "activeLoanCount": 2,
   "outstandingLoanBalanceUsd": 150000,
   "weightedAverageLtv": 0.45,
   "highestRiskLoan": { ... },
-  "infrastructure": {
-    "walletCount": 3,
-    "bitcoinNodeConnected": true,
-    "bitcoinNodeBlockHeight": 850000,
-    "electrumConnected": true,
-    "electrumBlockHeight": 850000
-  },
+  "walletCount": 3,
+  "totalBalance": { ... },
+  "wallets": [ ... ],
+  "recentActivity": { ... },
   "lastUpdatedUtc": "2026-07-27T12:34:56Z"
 }
 ```
+
+Under the additive model:
+- `totalBitcoin` = wallet balances + collateral (e.g., 5.182 + 4.703 = 9.885)
+- `availableBitcoin` = wallet balances (full amount; not reduced by collateral)
+- `collateralBitcoin` = sum of active loan collateral amounts
 
 ## Dashboard Layout
 
 The frontend displays the overview in three primary sections:
 
 ### 1. Bitcoin Holdings
-- **Total Bitcoin Holdings** — `totalBitcoin`
-- **Available Bitcoin** — `availableBitcoin`
+- **Total Bitcoin Holdings** — `totalBitcoin` = wallets + collateral (additive)
+- **Available Bitcoin** — `availableBitcoin` = full wallet balances (collateral is not subtracted)
 - **Bitcoin Locked as Collateral** — `collateralBitcoin`
-- **Total USD Value** — `totalValueUsd`
+- **Total USD Value** — `totalValueUsd` (based on `totalBitcoin`)
 
 ### 2. Treasury
 - **Active Loans** — `activeLoanCount`
 - **Outstanding Loan Balance** — `outstandingLoanBalanceUsd`
+- **Total collateral** — `collateralBitcoin` (BTC)
+- **Collateral value** — `collateralBitcoin * bitcoinPriceUsd`
 - **Weighted Average LTV** — `weightedAverageLtv`
 - **Highest Risk Loan** — `highestRiskLoan` (name, LTV, warning/liquidation prices)
 
 ### 3. Infrastructure
-- **Wallet Count** — `infrastructure.walletCount`
-- **Bitcoin Node Status** — `infrastructure.bitcoinNodeConnected`, block height
-- **Electrum Status** — `infrastructure.electrumConnected`, block height
+Infrastructure status is shown on the **Infrastructure** page (node and Electrum connectivity, block heights). The dashboard overview includes `walletCount` at the top level for quick reference.
 
 ## Future Extensibility
 

@@ -172,9 +172,21 @@ Holding (ownership abstraction)
  └── Manual (user-entered balance)   — planned
 ```
 
+**Holdings formulas (additive model):**
+
+- `TotalBitcoin` = Σ(wallet balances) + Σ(loan collateral amounts)
+- `AvailableBitcoin` = Σ(wallet balances) — full wallet holdings, not reduced by collateral
+- `CollateralBitcoin` = Σ(loan collateral amounts)
+
+Collateral is **separate** Bitcoin held in custody at the lender. It is counted
+in total holdings and is not subtracted from wallet balances. A wallet's full
+balance remains "available" in the holdings view; collateral appears as its own
+category representing Bitcoin owned but pledged elsewhere.
+
 Key services:
 - `IHoldingsService` — aggregates holdings from all sources into
-  `HoldingsSummaryDto` and `HoldingDto`.
+  `HoldingsSummaryDto` and `HoldingDto`. Also provides `GetBreakdownAsync()`
+  for the dashboard overview.
 - `IDashboardQueryService` — orchestrates holdings, loans, and infrastructure
   into a single `DashboardOverviewDto`.
 - API: `GET /api/holdings/summary`, `GET /api/holdings/`.
