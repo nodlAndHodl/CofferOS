@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { api } from '../api/client';
+import type { WalletSummary } from '../types';
 import { Button } from './ui';
 
 interface Props {
@@ -28,6 +29,11 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Wallet relationship (optional)
+  const [wallets, setWallets] = useState<WalletSummary[]>([]);
+  const [collateralWalletLinked, setCollateralWalletLinked] = useState<'yes' | 'no' | null>(null);
+  const [linkedWalletId, setLinkedWalletId] = useState<string>('');
+
   useEffect(() => {
     api.getBtcPrice()
       .then((info) => {
@@ -38,6 +44,9 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
       .catch(() => {
         // leave the default if the price service is unavailable
       });
+    api.listWallets()
+      .then(setWallets)
+      .catch(() => {});
   }, []);
 
 
@@ -240,6 +249,52 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
             <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Notes (optional)</label>
             <textarea className={`${inputClass} h-20`} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+
+          {/* Wallet relationship */}
+          {wallets.length > 0 && (
+            <div className="md:col-span-2 rounded-lg border border-[var(--color-coffer-border)] p-4">
+              <label className="mb-2 block text-xs font-medium text-[var(--color-coffer-muted)]">
+                Is the collateral represented by one of your imported wallets?
+              </label>
+              <div className="flex gap-4 mb-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="walletLinked"
+                    checked={collateralWalletLinked === 'yes'}
+                    onChange={() => setCollateralWalletLinked('yes')}
+                    className="accent-[var(--color-coffer-orange)]"
+                  />
+                  Yes
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="walletLinked"
+                    checked={collateralWalletLinked === 'no'}
+                    onChange={() => { setCollateralWalletLinked('no'); setLinkedWalletId(''); }}
+                    className="accent-[var(--color-coffer-orange)]"
+                  />
+                  No
+                </label>
+              </div>
+              {collateralWalletLinked === 'yes' && (
+                <select
+                  className={inputClass}
+                  value={linkedWalletId}
+                  onChange={(e) => setLinkedWalletId(e.target.value)}
+                >
+                  <option value="">Select a wallet...</option>
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              )}
+              <p className="mt-2 text-xs text-[var(--color-coffer-muted)]">
+                Linking a wallet helps track collateral without duplicating ownership in holdings.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex gap-3">

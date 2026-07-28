@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Landmark, LayoutDashboard, Shield, Wallet } from 'lucide-react';
+import { Coins, Landmark, LayoutDashboard, Server, Settings, Shield } from 'lucide-react';
 
 export function Layout({ children }: { children: ReactNode }) {
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    isActive
+      ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
+      : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white';
+
   return (
     <div className="flex min-h-screen">
       <aside className="hidden w-64 shrink-0 border-r border-[var(--color-coffer-border)] bg-[var(--color-coffer-panel)] p-5 md:block">
@@ -17,35 +22,20 @@ export function Layout({ children }: { children: ReactNode }) {
         </NavLink>
 
         <nav className="space-y-1 text-sm">
-          <NavLink
-            to="/"
-            className={({ isActive }: { isActive: boolean }) =>
-              isActive
-                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
-                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
-            }
-          >
+          <NavLink to="/" end className={navLinkClass}>
             <LayoutDashboard size={18} /> Dashboard
           </NavLink>
-          <NavLink
-            to="/wallets"
-            className={({ isActive }: { isActive: boolean }) =>
-              isActive
-                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
-                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
-            }
-          >
-            <Wallet size={18} /> Wallets
+          <NavLink to="/holdings" className={navLinkClass}>
+            <Coins size={18} /> Holdings
           </NavLink>
-          <NavLink
-            to="/treasury"
-            className={({ isActive }: { isActive: boolean }) =>
-              isActive
-                ? 'flex items-center gap-3 rounded-lg bg-[var(--color-coffer-border)] px-3 py-2 text-white'
-                : 'flex items-center gap-3 rounded-lg px-3 py-2 text-[var(--color-coffer-muted)] hover:bg-[var(--color-coffer-border)] hover:text-white'
-            }
-          >
-            <Landmark size={18} /> Loans
+          <NavLink to="/treasury" className={navLinkClass}>
+            <Landmark size={18} /> Treasury
+          </NavLink>
+          <NavLink to="/infrastructure" className={navLinkClass}>
+            <Server size={18} /> Infrastructure
+          </NavLink>
+          <NavLink to="/settings" className={navLinkClass}>
+            <Settings size={18} /> Settings
           </NavLink>
         </nav>
 

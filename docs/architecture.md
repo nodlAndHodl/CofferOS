@@ -20,7 +20,7 @@ the larger vision.
 
 Modules (current + planned):
 
-`Wallets` · `Nodes` · `Transactions` · `UTXO` · `Lightning` · `Treasury` · `Integrations`
+`Holdings` · `Wallets` · `Nodes` · `Transactions` · `UTXO` · `Lightning` · `Treasury` · `Integrations`
 
 ## 2. Layers (Clean Architecture)
 
@@ -44,7 +44,7 @@ Dependency rule: dependencies point **inward**. `Domain` depends on nothing.
 | Project | Responsibility |
 | ------- | -------------- |
 | `CofferOS.Domain` | Descriptor-centric entities (`Wallet`, `Descriptor`, `Address`, `WalletTransaction`, `Utxo`, `Label`, `Note`), value objects (`BitcoinAmount`, `Balance`), and domain events. Pure, no dependencies. |
-| `CofferOS.Application` | Use-case services (`WalletImportService`, `WalletQueryService`, `DashboardService`), DTO contracts, and **abstractions**: provider plugin contracts, `IDescriptorParser`, repositories, domain-event dispatcher. |
+| `CofferOS.Application` | Use-case services (`WalletImportService`, `WalletQueryService`, `DashboardService`), aggregation services (`HoldingsService`, `LoanAnalyticsService`, `DashboardQueryService`), DTO contracts, and **abstractions**: provider plugin contracts, `IDescriptorParser`, repositories, domain-event dispatcher. |
 | `CofferOS.Infrastructure` | EF Core + SQLite `DbContext`, repositories, the NBitcoin-backed descriptor parser, and the domain-event dispatcher. |
 | `CofferOS.Integrations.BitcoinCore` | A plugin implementing the provider contracts over Bitcoin Core JSON-RPC (read-only). |
 | `CofferOS.Api` | Minimal-API HTTP surface, DI composition, Serilog logging, config, startup migrations. |
@@ -111,8 +111,13 @@ scanner → dashboard pipeline plugs into these same seams.
 - Lives in the same monorepo at `src/frontend/cofferos-ui`.
 - Served by nginx in production; nginx reverse-proxies `/api` to the backend, so the
   UI and API share an origin (no CORS in prod). In dev, Vite proxies `/api`.
-- Screens: **Dashboard** (total balance, wallets, recent activity, node status) and
+- Navigation: **Dashboard**, **Holdings**, **Treasury**, **Infrastructure**, **Settings**.
+- Screens: **Dashboard** (holdings summary, loan overview, recent activity),
+  **Holdings** (all Bitcoin ownership — wallets, collateral, future sources),
+  **Treasury** (loans and liabilities), **Infrastructure** (node/electrum status),
   **Wallet detail** (descriptors, addresses, UTXOs, transactions, labels).
+- "Add Holding" wizard replaces direct "Import Wallet" — users choose a holding
+  type first, then the appropriate workflow (wallet import, loan creation, etc.).
 
 ## 8. Deployment
 
@@ -149,9 +154,35 @@ CofferOS/
   docker-compose.yml
 ```
 
-## 10. What is intentionally NOT built yet
+## 10. Holdings — first-class domain concept
+
+**Holdings** represent Bitcoin *ownership*, regardless of how it is technically
+stored. A wallet is one type of holding; collateral pledged against a loan is
+another. The architecture is extensible for Lightning, IRAs, ETFs, mining, and
+manual entries.
+
+```
+Holding (ownership abstraction)
+ ├── Wallet (self-custody, watch-only)
+ ├── LoanCollateral (pledged against loans)
+ ├── Lightning (channel balances) — planned
+ ├── Retirement (IRA/401k)          — planned
+ ├── ETF (Bitcoin ETF positions)     — planned
+ ├── Mining                          — planned
+ └── Manual (user-entered balance)   — planned
+```
+
+Key services:
+- `IHoldingsService` — aggregates holdings from all sources into
+  `HoldingsSummaryDto` and `HoldingDto`.
+- `IDashboardQueryService` — orchestrates holdings, loans, and infrastructure
+  into a single `DashboardOverviewDto`.
+- API: `GET /api/holdings/summary`, `GET /api/holdings/`.
+
+## 11. What is intentionally NOT built yet
 
 Designed-for but not implemented (to keep the MVP a working vertical slice):
 Electrum / Mempool / Lightning providers, live wallet scanning, treasury analytics,
 and interop importers for Sparrow / Specter / Nunchuk / Casa / Unchained (via
-descriptor and BIP-329 label import/export).
+descriptor and BIP-329 label import/export). Future holding types (Lightning,
+Retirement, ETF, Mining, Manual) are stubbed in the UI as "Coming Soon".

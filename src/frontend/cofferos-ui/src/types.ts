@@ -359,3 +359,60 @@ export interface LoanHistoricalData {
   snapshots: LoanPriceSnapshot[];
 }
 
+export interface DashboardOverview {
+  // Holdings
+  totalBitcoin: number;
+  availableBitcoin: number;
+  collateralBitcoin: number;
+  bitcoinPriceUsd: number;
+  totalValueUsd: number;
+
+  // Treasury
+  activeLoanCount: number;
+  outstandingLoanBalanceUsd: number;
+  weightedAverageLtv: number;
+  highestRiskLoan?: LoanSummary | null;
+
+  // Wallet summary + activity (merged from old dashboard)
+  walletCount: number;
+  totalBalance: Balance;
+  wallets: WalletSummary[];
+  recentActivity: RecentActivityPage;
+
+  // Metadata
+  lastUpdatedUtc: string;
+}
+
+// Keep old name as alias for now if referenced elsewhere, but prefer DashboardOverview
+export type TreasuryOverview = DashboardOverview;
+
+// Holdings (first-class domain concept)
+export type HoldingType = 'Wallet' | 'LoanCollateral' | 'Lightning' | 'Retirement' | 'Etf' | 'Mining' | 'Manual';
+
+export interface HoldingsSummary {
+  totalBitcoin: number;
+  availableBitcoin: number;
+  collateralBitcoin: number;
+  totalValueUsd: number;
+  breakdown: HoldingBreakdown[];
+}
+
+export interface HoldingBreakdown {
+  category: string;
+  bitcoinAmount: number;
+  percentage: number;
+  valueUsd: number;
+  count: number;
+}
+
+export interface Holding {
+  id: string;
+  type: HoldingType;
+  name: string;
+  bitcoinAmount: number;
+  availableBitcoin: number;
+  lockedBitcoin: number;
+  valueUsd: number;
+  isReadOnly: boolean;
+  institution?: string | null;
+}

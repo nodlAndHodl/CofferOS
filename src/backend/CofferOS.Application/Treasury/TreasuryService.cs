@@ -373,12 +373,15 @@ public sealed class TreasuryService
     /// <summary>
     /// Fetches historical price data for a loan and returns calculated historical LTV.
     /// Populates the loan_price_snapshots table if not already present.
+    /// Reconstructs historical balance at each snapshot date using payment history and accrual.
     /// </summary>
     public async Task<LoanHistoricalDataDto> GetHistoricalDataAsync(Guid loanId, CancellationToken cancellationToken = default)
     {
         var loan = await _loans.GetByIdAsync(loanId, cancellationToken);
         if (loan is null)
             throw new ArgumentException("Loan not found.", nameof(loanId));
+
+        var payments = await _payments.GetByLoanAsync(loanId, cancellationToken);
 
         var endDate = DateTimeOffset.UtcNow;
         var startDate = loan.LoanStartDate;
@@ -428,21 +431,45 @@ public sealed class TreasuryService
             .OrderBy(s => s.SnapshotDate)
             .ToList();
 
-        // Build response DTOs with calculated LTV
+        // Build response DTOs with calculated LTV using historical balance at each snapshot date
         var snapshotDtos = new List<LoanPriceSnapshotDto>();
         foreach (var snapshot in snapshotsInRange)
         {
+            // Reconstruct the loan's balance as of this snapshot date
+            var historicalBalance = CalculateHistoricalBalance(loan, payments, snapshot.SnapshotDate);
+            
             var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, snapshot.PriceUsd);
-            var ltv = LoanCalculator.CalculateCurrentLtv(loan.CurrentBalance, collateralValue);
+            var ltv = LoanCalculator.CalculateCurrentLtv(historicalBalance, collateralValue);
 
             snapshotDtos.Add(new LoanPriceSnapshotDto(
                 snapshot.SnapshotDate,
                 snapshot.PriceUsd,
-                loan.CurrentBalance,
+                historicalBalance,
                 collateralValue,
                 ltv));
         }
 
         return new LoanHistoricalDataDto(loanId, startDate, endDate, snapshotDtos);
+    }
+
+    /// <summary>
+    /// Reconstructs the loan balance as it was on a specific historical date.
+    /// Uses the accrual engine to compute principal + accrued interest up to that date,
+    /// accounting for all payments made before that date.
+    /// </summary>
+    private decimal CalculateHistoricalBalance(Loan loan, IReadOnlyList<LoanPayment> payments, DateTimeOffset asOfDate)
+    {
+        // Filter payments that occurred on or before the snapshot date
+        var paymentsUpToDate = payments
+            .Where(p => p.PaymentDate.Date <= asOfDate.Date)
+            .ToList();
+
+        // Use the accrual engine to calculate balance at this historical date
+        // This accounts for principal reduction from payments and interest accrual
+        var snapshot = _accrual.CalculateAsync(loan, paymentsUpToDate, asOfDate, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+
+        return snapshot.CurrentBalance;
     }
 }

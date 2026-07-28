@@ -76,6 +76,7 @@ app.UseWebSockets();
 
 app.MapCofferOsEndpoints();
 app.MapTreasuryEndpoints();
+app.MapHoldingsEndpoints();
 app.MapWebSocketEndpoints();
 
 app.Run();
