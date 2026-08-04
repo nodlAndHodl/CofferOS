@@ -19,6 +19,7 @@ public sealed record WalletSummaryDto(
     int DescriptorCount,
     int TransactionCount,
     BalanceDto Balance,
+    decimal TotalCostBasis,
     DateTimeOffset CreatedAt);
 
 public sealed record DescriptorDto(
@@ -58,7 +59,8 @@ public sealed record UtxoDto(
     string? Address,
     int Confirmations,
     DateTimeOffset? Timestamp,
-    bool IsSpent);
+    bool IsSpent,
+    decimal CostBasis);
 
 public sealed record RescanResultDto(int UtxoCount, BalanceDto Balance);
 
@@ -124,6 +126,7 @@ public sealed record WalletDetailDto(
     IReadOnlyList<TagDto> Tags,
     IReadOnlyList<CategoryDto> Categories,
     IReadOnlyList<MetadataEntryDto> Metadata,
+    decimal TotalCostBasis,
     DateTimeOffset CreatedAt);
 
 /// <summary>A single entry on a wallet timeline (stored annotation or generated from history).</summary>

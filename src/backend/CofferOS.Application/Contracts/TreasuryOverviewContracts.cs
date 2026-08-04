@@ -8,6 +8,9 @@ public sealed record DashboardOverviewDto(
     decimal CollateralBitcoin,
     decimal BitcoinPriceUsd,
     decimal TotalValueUsd,
+    decimal TotalCostBasis,
+    decimal UnrealizedPnl,
+    decimal UnrealizedPnlPercent,
 
     // Treasury
     int ActiveLoanCount,

@@ -1,8 +1,10 @@
+using CofferOS.Application.CostBasis;
 using CofferOS.Application.Abstractions.Holdings;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
 using CofferOS.Application.Wallets;
+using CofferOS.Domain.Common;
 
 namespace CofferOS.Application.Holdings;
 
@@ -15,24 +17,42 @@ public sealed class HoldingsService : IHoldingsService
     private readonly WalletQueryService _walletQueries;
     private readonly ILoanRepository _loans;
     private readonly IBitcoinPriceProvider _priceProvider;
+    private readonly CostBasisService _costBasis;
 
     public HoldingsService(
         WalletQueryService walletQueries,
         ILoanRepository loans,
-        IBitcoinPriceProvider priceProvider)
+        IBitcoinPriceProvider priceProvider,
+        CostBasisService costBasis)
     {
         _walletQueries = walletQueries;
         _loans = loans;
         _priceProvider = priceProvider;
+        _costBasis = costBasis;
     }
 
     public async Task<HoldingsSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
         var breakdown = await GetBreakdownAsync(cancellationToken);
         var btcPrice = await _priceProvider.GetCurrentPriceAsync(cancellationToken) ?? 0m;
+        var totalValue = breakdown.TotalBitcoin * btcPrice;
 
         var walletSummaries = await _walletQueries.GetSummariesAsync(cancellationToken);
         var activeLoans = await _loans.GetActiveAsync(cancellationToken);
+
+        // Cost basis
+        var walletCostBasis = walletSummaries.Sum(w => w.TotalCostBasis);
+
+        var loanIds = activeLoans.Select(l => l.Id.ToString()).ToList();
+        var loanCostBasisById = await _costBasis.GetByReferencesAsync(
+            CostBasisTarget.LoanCollateral,
+            loanIds,
+            cancellationToken);
+        var collateralCostBasis = loanCostBasisById.Values.Sum();
+
+        var totalCostBasis = walletCostBasis + collateralCostBasis;
+        var unrealizedPnl = totalValue - totalCostBasis;
+        var unrealizedPnlPercent = totalCostBasis > 0 ? unrealizedPnl / totalCostBasis : 0m;
 
         var categories = new List<HoldingBreakdownDto>();
 
@@ -44,24 +64,30 @@ public sealed class HoldingsService : IHoldingsService
 
         if (walletBtc > 0)
         {
+            var walletValue = walletBtc * btcPrice;
             categories.Add(new HoldingBreakdownDto
             {
                 Category = "Wallet Holdings",
                 BitcoinAmount = walletBtc,
                 Percentage = breakdown.TotalBitcoin > 0 ? walletBtc / breakdown.TotalBitcoin : 0,
-                ValueUsd = walletBtc * btcPrice,
+                Value = walletValue,
+                CostBasis = walletCostBasis,
+                UnrealizedPnl = walletValue - walletCostBasis,
                 Count = walletSummaries.Count
             });
         }
 
         if (collateralBtc > 0)
         {
+            var collateralValue = collateralBtc * btcPrice;
             categories.Add(new HoldingBreakdownDto
             {
                 Category = "Collateral",
                 BitcoinAmount = collateralBtc,
                 Percentage = breakdown.TotalBitcoin > 0 ? collateralBtc / breakdown.TotalBitcoin : 0,
-                ValueUsd = collateralBtc * btcPrice,
+                Value = collateralValue,
+                CostBasis = collateralCostBasis,
+                UnrealizedPnl = collateralValue - collateralCostBasis,
                 Count = activeLoans.Count
             });
         }
@@ -71,7 +97,10 @@ public sealed class HoldingsService : IHoldingsService
             TotalBitcoin = breakdown.TotalBitcoin,
             AvailableBitcoin = breakdown.AvailableBitcoin,
             CollateralBitcoin = breakdown.CollateralBitcoin,
-            TotalValueUsd = breakdown.TotalBitcoin * btcPrice,
+            TotalValue = totalValue,
+            TotalCostBasis = totalCostBasis,
+            UnrealizedPnl = unrealizedPnl,
+            UnrealizedPnlPercent = unrealizedPnlPercent,
             Breakdown = categories
         };
     }
@@ -86,6 +115,7 @@ public sealed class HoldingsService : IHoldingsService
 
         foreach (var wallet in walletSummaries)
         {
+            var value = wallet.Balance.TotalBtc * btcPrice;
             holdings.Add(new HoldingDto
             {
                 Id = wallet.Id,
@@ -94,14 +124,24 @@ public sealed class HoldingsService : IHoldingsService
                 BitcoinAmount = wallet.Balance.TotalBtc,
                 AvailableBitcoin = wallet.Balance.TotalBtc,
                 LockedBitcoin = 0m,
-                ValueUsd = wallet.Balance.TotalBtc * btcPrice,
+                Value = value,
+                CostBasis = wallet.TotalCostBasis,
+                UnrealizedPnl = value - wallet.TotalCostBasis,
                 IsReadOnly = true,
                 Institution = null
             });
         }
 
+        var loanIds = activeLoans.Select(l => l.Id.ToString()).ToList();
+        var costBasisByLoan = await _costBasis.GetByReferencesAsync(
+            CostBasisTarget.LoanCollateral,
+            loanIds,
+            cancellationToken);
+
         foreach (var loan in activeLoans)
         {
+            var value = loan.CollateralAmountBtc * btcPrice;
+            var costBasis = costBasisByLoan.GetValueOrDefault(loan.Id.ToString());
             holdings.Add(new HoldingDto
             {
                 Id = loan.Id,
@@ -110,7 +150,9 @@ public sealed class HoldingsService : IHoldingsService
                 BitcoinAmount = loan.CollateralAmountBtc,
                 AvailableBitcoin = 0m,
                 LockedBitcoin = loan.CollateralAmountBtc,
-                ValueUsd = loan.CollateralAmountBtc * btcPrice,
+                Value = value,
+                CostBasis = costBasis,
+                UnrealizedPnl = value - costBasis,
                 IsReadOnly = true,
                 Institution = loan.Lender
             });

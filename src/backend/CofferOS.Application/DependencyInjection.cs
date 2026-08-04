@@ -1,3 +1,4 @@
+using CofferOS.Application.CostBasis;
 using CofferOS.Application.Abstractions.Dashboard;
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Holdings;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<WalletQueryService>();
         services.AddScoped<WalletRescanService>();
         services.AddScoped<TransactionMetadataService>();
+        services.AddScoped<CostBasisService>();
         services.AddScoped<WalletTimelineService>();
         services.AddScoped<DashboardService>();
         services.AddScoped<TreasuryService>();

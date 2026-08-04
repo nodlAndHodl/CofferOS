@@ -18,7 +18,10 @@ public sealed class HoldingsSummaryDto
     public decimal TotalBitcoin { get; init; }
     public decimal AvailableBitcoin { get; init; }
     public decimal CollateralBitcoin { get; init; }
-    public decimal TotalValueUsd { get; init; }
+    public decimal TotalValue { get; init; }
+    public decimal TotalCostBasis { get; init; }
+    public decimal UnrealizedPnl { get; init; }
+    public decimal UnrealizedPnlPercent { get; init; }
     public IReadOnlyList<HoldingBreakdownDto> Breakdown { get; init; } = [];
 }
 
@@ -28,7 +31,9 @@ public sealed class HoldingBreakdownDto
     public string Category { get; init; } = string.Empty;
     public decimal BitcoinAmount { get; init; }
     public decimal Percentage { get; init; }
-    public decimal ValueUsd { get; init; }
+    public decimal Value { get; init; }
+    public decimal CostBasis { get; init; }
+    public decimal UnrealizedPnl { get; init; }
     public int Count { get; init; }
 }
 
@@ -41,7 +46,9 @@ public sealed class HoldingDto
     public decimal BitcoinAmount { get; init; }
     public decimal AvailableBitcoin { get; init; }
     public decimal LockedBitcoin { get; init; }
-    public decimal ValueUsd { get; init; }
+    public decimal Value { get; init; }
+    public decimal CostBasis { get; init; }
+    public decimal UnrealizedPnl { get; init; }
     public bool IsReadOnly { get; init; }
     public string? Institution { get; init; }
 }

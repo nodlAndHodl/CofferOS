@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import type { DashboardOverview, RecentActivityPage, RecentActivityItem } from '../types';
 import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
-import { formatBtc, formatDate, formatPercent, formatUsd, shorten } from '../lib/format';
+import { formatBtc, formatDate, formatFiat, formatPercent, formatUsd, shorten } from '../lib/format';
 import { getTagColorClass } from '../lib/tagColor';
 
 function normalizeActivity(raw: unknown): RecentActivityPage | null {
@@ -85,11 +85,13 @@ export function DashboardPage() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Bitcoin Holdings</h2>
             <Link to="/holdings" className="text-xs text-[var(--color-coffer-muted)] hover:text-[var(--color-coffer-orange)]">View holdings →</Link>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard icon={<WalletIcon size={18} />} label="Total Bitcoin" value={`${overview.totalBitcoin.toFixed(8)} BTC`} />
             <StatCard icon={<Activity size={18} />} label="Available Bitcoin" value={`${overview.availableBitcoin.toFixed(8)} BTC`} />
             <StatCard icon={<Landmark size={18} />} label="Locked as Collateral" value={`${overview.collateralBitcoin.toFixed(8)} BTC`} />
             <StatCard icon={<WalletIcon size={18} />} label="Current USD Value" value={formatUsd(overview.totalValueUsd)} />
+            <StatCard icon={<WalletIcon size={18} />} label="Total Cost Basis" value={formatFiat(overview.totalCostBasis)} />
+            <StatCard icon={<Activity size={18} />} label="Unrealized P&L" value={`${formatFiat(overview.unrealizedPnl)} (${formatPercent(overview.unrealizedPnlPercent)})`} color={overview.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'} />
           </div>
         </div>
       )}
@@ -222,14 +224,14 @@ export function DashboardPage() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: React.ReactNode; color?: string }) {
   return (
     <Card className="p-4">
       <div className="mb-2 flex items-center gap-2 text-[var(--color-coffer-muted)]">
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <div className="text-xl font-bold">{value}</div>
+      <div className={`text-xl font-bold ${color ?? ''}`}>{value}</div>
     </Card>
   );
 }

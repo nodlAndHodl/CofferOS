@@ -112,6 +112,15 @@ export const api = {
   getBtcPrice: () => request<BtcPriceInfo>('/price'),
   getLoanHistoricalData: (id: string) => request<LoanHistoricalData>(`/loans/${id}/historical`),
 
+  // Cost basis
+  setCostBasis: (target: string, reference: string, amount: number) =>
+    request<void>(`/cost-basis/${encodeURIComponent(target)}/${encodeURIComponent(reference)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ amount }),
+    }),
+  clearCostBasis: (target: string, reference: string) =>
+    request<void>(`/cost-basis/${encodeURIComponent(target)}/${encodeURIComponent(reference)}`, { method: 'DELETE' }),
+
   // Holdings
   getHoldingsSummary: () => request<HoldingsSummary>('/holdings/summary'),
   listHoldings: () => request<Holding[]>('/holdings/'),

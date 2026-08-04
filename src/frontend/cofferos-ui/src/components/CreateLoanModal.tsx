@@ -26,6 +26,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
   const [warningLtvPercent, setWarningLtvPercent] = useState(80);
   const [liquidationLtvPercent, setLiquidationLtvPercent] = useState(90);
   const [notes, setNotes] = useState('');
+  const [collateralCostBasis, setCollateralCostBasis] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +89,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
         currentBtcPrice,
         warningLtv: warningLtvPercent / 100,
         liquidationLtv: liquidationLtvPercent / 100,
+        collateralCostBasis: collateralCostBasis || undefined,
         notes: notes.trim() || undefined,
         interestPaymentSchedule,
       });
@@ -243,6 +245,11 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Liquidation LTV % (e.g. 90)</label>
             <input type="number" step="0.01" className={inputClass} value={liquidationLtvPercent} onChange={(e) => setLiquidationLtvPercent(parseFloat(e.target.value) || 0)} />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Collateral Cost Basis</label>
+            <input type="number" className={inputClass} value={collateralCostBasis} onChange={(e) => setCollateralCostBasis(parseFloat(e.target.value) || 0)} />
           </div>
 
           <div className="md:col-span-2">

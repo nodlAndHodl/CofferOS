@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<ILoanPaymentRepository, LoanPaymentRepository>();
         services.AddScoped<ILoanPriceSnapshotRepository, LoanPriceSnapshotRepository>();
         services.AddScoped<IBitcoinPriceHistoryRepository, BitcoinPriceHistoryRepository>();
+        services.AddScoped<ICostBasisRepository, CostBasisRepository>();
 
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 

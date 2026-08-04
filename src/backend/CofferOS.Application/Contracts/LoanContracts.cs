@@ -15,6 +15,7 @@ public sealed record CreateLoanRequest(
     decimal CurrentBtcPrice,
     decimal WarningLtv,
     decimal LiquidationLtv,
+    decimal? CollateralCostBasis,
     string? Notes,
     string InterestPaymentSchedule = "Accruing");
 
@@ -33,6 +34,7 @@ public sealed record UpdateLoanRequest(
     decimal CurrentBtcPrice,
     decimal WarningLtv,
     decimal LiquidationLtv,
+    decimal? CollateralCostBasis,
     string? Notes,
     string InterestPaymentSchedule = "Accruing");
 
@@ -54,6 +56,7 @@ public sealed record LoanSummaryDto(
     decimal LiquidationLtv,
     decimal DistanceToWarning,
     decimal DistanceToLiquidation,
+    decimal CollateralCostBasis,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -83,6 +86,7 @@ public sealed record LoanDetailDto(
     decimal DistanceToWarning,
     decimal DistanceToLiquidation,
     decimal RemainingCollateralBuffer,
+    decimal CollateralCostBasis,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

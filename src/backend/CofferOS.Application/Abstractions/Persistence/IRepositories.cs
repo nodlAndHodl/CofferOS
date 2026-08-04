@@ -116,6 +116,16 @@ public interface ILoanPriceSnapshotRepository
     void Remove(LoanPriceSnapshot snapshot);
 }
 
+/// <summary>Read/write access to user-provided cost basis amounts.</summary>
+public interface ICostBasisRepository
+{
+    Task<CostBasisEntry?> GetAsync(CostBasisTarget target, string reference, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CostBasisEntry>> GetByReferencesAsync(CostBasisTarget target, IReadOnlyList<string> references, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CostBasisEntry>> GetByTargetAsync(CostBasisTarget target, CancellationToken cancellationToken = default);
+    Task AddAsync(CostBasisEntry entry, CancellationToken cancellationToken = default);
+    void Remove(CostBasisEntry entry);
+}
+
 /// <summary>Transactional boundary. Committing also dispatches buffered domain events.</summary>
 public interface IUnitOfWork
 {

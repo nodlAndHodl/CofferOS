@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Holding, HoldingsSummary } from '../types';
 import { Button, Card, Spinner } from '../components/ui';
-import { formatUsd } from '../lib/format';
+import { formatFiat, formatPercent } from '../lib/format';
 import { AddHoldingWizard } from '../components/AddHoldingWizard';
 
 export function HoldingsPage() {
@@ -54,8 +54,14 @@ export function HoldingsPage() {
       <Card className="mb-8 p-6">
         <div className="text-sm text-[var(--color-coffer-muted)] mb-1">Total Holdings</div>
         <div className="text-3xl font-bold">{summary?.totalBitcoin.toFixed(8) ?? '0.00000000'} BTC</div>
-        {summary && summary.totalValueUsd > 0 && (
-          <div className="text-sm text-[var(--color-coffer-muted)] mt-1">{formatUsd(summary.totalValueUsd)}</div>
+        {summary && summary.totalValue > 0 && (
+          <div className="grid gap-1 mt-1 text-sm text-[var(--color-coffer-muted)] sm:grid-cols-3">
+            <div>Value {formatFiat(summary.totalValue)}</div>
+            <div>Cost Basis {formatFiat(summary.totalCostBasis)}</div>
+            <div className={summary.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+              P&L {formatFiat(summary.unrealizedPnl)} ({formatPercent(summary.unrealizedPnlPercent)})
+            </div>
+          </div>
         )}
       </Card>
 
@@ -67,7 +73,9 @@ export function HoldingsPage() {
           title="Wallet Holdings"
           subtitle={`${holdings.filter(h => h.type === 'Wallet').length} Wallet${holdings.filter(h => h.type === 'Wallet').length !== 1 ? 's' : ''}`}
           btcAmount={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.bitcoinAmount ?? summary?.availableBitcoin ?? 0}
-          valueUsd={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.valueUsd}
+          valueUsd={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.value}
+          costBasis={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.costBasis}
+          unrealizedPnl={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.unrealizedPnl}
           linkTo="/holdings/wallets"
         />
 
@@ -77,7 +85,9 @@ export function HoldingsPage() {
           title="Collateral"
           subtitle={`${holdings.filter(h => h.type === 'LoanCollateral').length} Loan${holdings.filter(h => h.type === 'LoanCollateral').length !== 1 ? 's' : ''}`}
           btcAmount={summary?.collateralBitcoin ?? 0}
-          valueUsd={summary?.breakdown.find(b => b.category === 'Collateral')?.valueUsd}
+          valueUsd={summary?.breakdown.find(b => b.category === 'Collateral')?.value}
+          costBasis={summary?.breakdown.find(b => b.category === 'Collateral')?.costBasis}
+          unrealizedPnl={summary?.breakdown.find(b => b.category === 'Collateral')?.unrealizedPnl}
           linkTo="/treasury"
         />
 
@@ -144,8 +154,8 @@ export function HoldingsPage() {
                     </div>
                     <div className="text-right">
                       <div className="font-bold">{h.bitcoinAmount.toFixed(8)} BTC</div>
-                      {h.valueUsd > 0 && (
-                        <div className="text-xs text-[var(--color-coffer-muted)]">{formatUsd(h.valueUsd)}</div>
+                      {h.value > 0 && (
+                        <div className="text-xs text-[var(--color-coffer-muted)]">{formatFiat(h.value)}</div>
                       )}
                     </div>
                   </div>
@@ -175,6 +185,8 @@ function HoldingCategoryCard({
   subtitle,
   btcAmount,
   valueUsd,
+  costBasis,
+  unrealizedPnl,
   linkTo,
   comingSoon,
 }: {
@@ -183,6 +195,8 @@ function HoldingCategoryCard({
   subtitle: string;
   btcAmount: number;
   valueUsd?: number;
+  costBasis?: number;
+  unrealizedPnl?: number;
   linkTo?: string;
   comingSoon?: boolean;
 }) {
@@ -201,7 +215,13 @@ function HoldingCategoryCard({
         {comingSoon ? '—' : `${btcAmount.toFixed(8)} BTC`}
       </div>
       {valueUsd != null && valueUsd > 0 && !comingSoon && (
-        <div className="text-xs text-[var(--color-coffer-muted)] mt-1">{formatUsd(valueUsd)}</div>
+        <div className="grid gap-1 text-xs sm:grid-cols-2">
+          <span className="text-[var(--color-coffer-muted)]">{formatFiat(valueUsd)} value</span>
+          <span className="text-[var(--color-coffer-muted)]">{formatFiat(costBasis ?? 0)} basis</span>
+          <span className={unrealizedPnl && unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+            {unrealizedPnl !== undefined ? formatFiat(unrealizedPnl) : '—'} P&L
+          </span>
+        </div>
       )}
     </Card>
   );

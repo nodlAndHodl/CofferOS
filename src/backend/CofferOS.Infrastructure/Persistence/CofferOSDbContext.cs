@@ -37,6 +37,7 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
     public DbSet<LoanPriceSnapshot> LoanPriceSnapshots => Set<LoanPriceSnapshot>();
     public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
+    public DbSet<CostBasisEntry> CostBasisEntries => Set<CostBasisEntry>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -243,6 +244,19 @@ public sealed class CofferOSDbContext : DbContext
             b.HasIndex(x => x.LoanId);
             b.HasIndex(x => x.SnapshotDate);
             b.HasIndex(x => new { x.LoanId, x.SnapshotDate });
+        });
+
+        modelBuilder.Entity<CostBasisEntry>(b =>
+        {
+            b.ToTable("cost_basis_entries");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Target).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.Reference).IsRequired().HasMaxLength(200);
+            b.Property(x => x.Amount).HasPrecision(18, 2);
+            b.Property(x => x.CreatedAt);
+            b.Property(x => x.UpdatedAt);
+            b.HasIndex(x => x.Reference);
+            b.HasIndex(x => new { x.Target, x.Reference }).IsUnique();
         });
 
         modelBuilder.Entity<CofferOS.Domain.Prices.BitcoinPriceHistory>(b =>

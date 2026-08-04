@@ -116,3 +116,9 @@ public enum InterestPaymentSchedule
     /// <summary>Interest is paid on a fixed schedule (e.g., monthly); principal does not accrue interest.</summary>
     InterestOnly = 1
 }
+/// <summary>The kind of object a cost basis amount is attached to.</summary>
+public enum CostBasisTarget
+{
+    Utxo = 0,
+    LoanCollateral = 1
+}

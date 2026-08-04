@@ -89,12 +89,17 @@ public sealed class DashboardQueryService : IDashboardQueryService
             }
         }
 
+        var holdingsSummary = await _holdings.GetSummaryAsync(cancellationToken);
+
         return new DashboardOverviewDto(
             TotalBitcoin: holdings.TotalBitcoin,
             AvailableBitcoin: holdings.AvailableBitcoin,
             CollateralBitcoin: holdings.CollateralBitcoin,
             BitcoinPriceUsd: btcPrice,
             TotalValueUsd: totalValueUsd,
+            TotalCostBasis: holdingsSummary.TotalCostBasis,
+            UnrealizedPnl: holdingsSummary.UnrealizedPnl,
+            UnrealizedPnlPercent: holdingsSummary.UnrealizedPnlPercent,
             ActiveLoanCount: activeLoanCount,
             OutstandingLoanBalanceUsd: outstandingLoanBalanceUsd,
             WeightedAverageLtv: weightedAvgLtv,
@@ -131,6 +136,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
             loan.LiquidationLtv,
             distWarn,
             distLiq,
+            0m, // dashboard summary doesn't need cost basis; set to 0
             loan.CreatedAt,
             loan.UpdatedAt);
     }

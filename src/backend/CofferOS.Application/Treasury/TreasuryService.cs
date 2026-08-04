@@ -1,6 +1,7 @@
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
+using CofferOS.Application.CostBasis;
 using CofferOS.Application.Prices;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Treasury;
@@ -20,6 +21,7 @@ public sealed class TreasuryService
     private readonly IBitcoinPriceProvider _priceProvider;
     private readonly ILoanAccrualService _accrual;
     private readonly CoinbaseHistoricalPriceService _historicalPriceService;
+    private readonly CostBasisService _costBasis;
 
     public TreasuryService(
         ILoanRepository loans,
@@ -28,7 +30,8 @@ public sealed class TreasuryService
         IUnitOfWork unitOfWork,
         IBitcoinPriceProvider priceProvider,
         ILoanAccrualService accrual,
-        CoinbaseHistoricalPriceService historicalPriceService)
+        CoinbaseHistoricalPriceService historicalPriceService,
+        CostBasisService costBasis)
     {
         _loans = loans;
         _payments = payments;
@@ -37,6 +40,7 @@ public sealed class TreasuryService
         _priceProvider = priceProvider;
         _accrual = accrual;
         _historicalPriceService = historicalPriceService;
+        _costBasis = costBasis;
     }
 
     public async Task<IReadOnlyList<LoanSummaryDto>> GetSummariesAsync(CancellationToken cancellationToken = default)
@@ -47,7 +51,7 @@ public sealed class TreasuryService
         {
             var pays = await _payments.GetByLoanAsync(loan.Id, cancellationToken);
             var snap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
-            results.Add(ToSummary(loan, snap));
+            results.Add(await ToSummary(loan, snap, cancellationToken));
         }
         return results;
     }
@@ -58,7 +62,7 @@ public sealed class TreasuryService
         if (loan is null) return null;
         var pays = await _payments.GetByLoanAsync(loan.Id, cancellationToken);
         var snap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
-        return ToDetail(loan, snap);
+        return await ToDetail(loan, snap, cancellationToken);
     }
 
     public async Task<LoanSummaryDto> CreateAsync(CreateLoanRequest request, CancellationToken cancellationToken = default)
@@ -115,9 +119,19 @@ public sealed class TreasuryService
         }
 
         await _loans.AddAsync(loan, cancellationToken);
+
+        if (request.CollateralCostBasis is > 0)
+        {
+            await _costBasis.SetAsync(
+                CostBasisTarget.LoanCollateral,
+                loan.Id.ToString(),
+                request.CollateralCostBasis.Value,
+                cancellationToken);
+        }
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return ToSummary(loan);
+        return await ToSummary(loan, null, cancellationToken);
     }
 
     public async Task<LoanDetailDto?> UpdateAsync(Guid id, UpdateLoanRequest request, CancellationToken cancellationToken = default)
@@ -210,12 +224,18 @@ public sealed class TreasuryService
             loan.UpdateBalance(calculatedBalance, isOverride: true);
         }
 
+        await _costBasis.SetAsync(
+            CostBasisTarget.LoanCollateral,
+            loan.Id.ToString(),
+            request.CollateralCostBasis ?? 0m,
+            cancellationToken);
+
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Return a fresh accrual snapshot so the UI gets the updated accrued interest immediately.
         var payments = await _payments.GetByLoanAsync(loan.Id, cancellationToken);
         var snap = await _accrual.CalculateAsync(loan, payments, null, cancellationToken);
-        return ToDetail(loan, snap);
+        return await ToDetail(loan, snap, cancellationToken);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -224,7 +244,7 @@ public sealed class TreasuryService
         if (loan is null) return false;
 
         _loans.Remove(loan);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _costBasis.SetAsync(CostBasisTarget.LoanCollateral, id.ToString(), 0m, cancellationToken);
         return true;
     }
 
@@ -259,7 +279,7 @@ public sealed class TreasuryService
             if (highestLtv is null || ltv > highestLtv)
             {
                 highestLtv = ltv;
-                highestRisk = ToSummary(loan, snap);
+                highestRisk = await ToSummary(loan, snap, cancellationToken);
             }
         }
 
@@ -283,7 +303,7 @@ public sealed class TreasuryService
             _priceProvider.ProviderId);
     }
 
-    private static LoanSummaryDto ToSummary(Loan loan, LoanAccrualSnapshot? snap = null)
+    private async Task<LoanSummaryDto> ToSummary(Loan loan, LoanAccrualSnapshot? snap = null, CancellationToken cancellationToken = default)
     {
         decimal balance = snap?.CurrentBalance ?? loan.CurrentBalance;
         var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, loan.CurrentBtcPrice);
@@ -308,11 +328,12 @@ public sealed class TreasuryService
             loan.LiquidationLtv,
             distWarn,
             distLiq,
+            await _costBasis.GetByReferenceAsync(CostBasisTarget.LoanCollateral, loan.Id.ToString(), cancellationToken),
             loan.CreatedAt,
             loan.UpdatedAt);
     }
 
-    private static LoanDetailDto ToDetail(Loan loan, LoanAccrualSnapshot? snap = null)
+    private async Task<LoanDetailDto> ToDetail(Loan loan, LoanAccrualSnapshot? snap = null, CancellationToken cancellationToken = default)
     {
         decimal balance = snap?.CurrentBalance ?? loan.CurrentBalance;
         var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, loan.CurrentBtcPrice);
@@ -348,6 +369,7 @@ public sealed class TreasuryService
             distWarn,
             distLiq,
             buffer,
+            await _costBasis.GetByReferenceAsync(CostBasisTarget.LoanCollateral, loan.Id.ToString(), cancellationToken),
             loan.CreatedAt,
             loan.UpdatedAt);
     }

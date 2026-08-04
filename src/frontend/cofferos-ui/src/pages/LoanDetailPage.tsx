@@ -5,7 +5,7 @@ import { api } from '../api/client';
 import type { LoanDetail, LoanHistoricalData } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { LoanHistoricalChart } from '../components/LoanHistoricalChart';
-import { formatDate, formatPercent, formatUsd } from '../lib/format';
+import { formatDate, formatFiat, formatPercent, formatUsd } from '../lib/format';
 
 const inputClass =
   'w-full rounded-lg border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-coffer-orange)]';
@@ -40,6 +40,7 @@ export function LoanDetailPage() {
     // LTVs stored as percent in the UI (e.g. 80 for 80%)
     warningLtvPercent: 80,
     liquidationLtvPercent: 90,
+    collateralCostBasis: 0,
     notes: '',
   });
 
@@ -66,6 +67,7 @@ export function LoanDetailPage() {
         currentBtcPrice: d.currentBtcPrice,
         warningLtvPercent: Math.round((d.warningLtv ?? 0.8) * 100 * 100) / 100,
         liquidationLtvPercent: Math.round((d.liquidationLtv ?? 0.9) * 100 * 100) / 100,
+        collateralCostBasis: d.collateralCostBasis ?? 0,
         notes: d.notes ?? '',
       });
     } catch (e) {
@@ -114,6 +116,7 @@ export function LoanDetailPage() {
         currentBtcPrice: form.currentBtcPrice,
         warningLtv: form.warningLtvPercent / 100,
         liquidationLtv: form.liquidationLtvPercent / 100,
+        collateralCostBasis: form.collateralCostBasis || undefined,
         notes: form.notes || undefined,
         interestPaymentSchedule: form.interestPaymentSchedule,
       };
@@ -270,6 +273,9 @@ export function LoanDetailPage() {
               <Field label="Liquidation LTV (%)">
                 <input type="number" step="0.01" className={inputClass} value={form.liquidationLtvPercent} onChange={(e) => setForm({ ...form, liquidationLtvPercent: parseFloat(e.target.value) || 0 })} />
               </Field>
+              <Field label="Collateral Cost Basis">
+                <input type="number" className={inputClass} value={form.collateralCostBasis} onChange={(e) => setForm({ ...form, collateralCostBasis: parseFloat(e.target.value) || 0 })} />
+              </Field>
               <Field label="Notes">
                 <textarea className={`${inputClass} h-20`} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </Field>
@@ -294,6 +300,7 @@ export function LoanDetailPage() {
                       currentBtcPrice: loan.currentBtcPrice,
                       warningLtvPercent: Math.round((loan.warningLtv ?? 0.8) * 100 * 100) / 100,
                       liquidationLtvPercent: Math.round((loan.liquidationLtv ?? 0.9) * 100 * 100) / 100,
+                      collateralCostBasis: loan.collateralCostBasis ?? 0,
                       notes: loan.notes ?? '',
                     });
                   }
@@ -327,6 +334,8 @@ export function LoanDetailPage() {
           <div className="space-y-2 text-sm">
             <Row label="Collateral" value={`${loan.collateralAmountBtc.toFixed(4)} BTC`} />
             <Row label="BTC Price" value={formatUsd(loan.currentBtcPrice)} />
+            <Row label="Collateral Cost Basis" value={formatFiat(loan.collateralCostBasis)} />
+            <Row label="Unrealized P&L" value={formatFiat(loan.currentCollateralValue - loan.collateralCostBasis)} />
             <Row label="Collateral Value" value={formatUsd(loan.currentCollateralValue)} />
             <Row label="Current LTV" value={<span className={ltvColor}>{formatPercent(loan.currentLtv)}</span>} />
             <Row label="Warning Threshold" value={formatPercent(loan.warningLtv)} />

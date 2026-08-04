@@ -14,6 +14,7 @@ export interface WalletSummary {
   descriptorCount: number;
   transactionCount: number;
   balance: Balance;
+  totalCostBasis: number;
   createdAt: string;
 }
 
@@ -58,6 +59,7 @@ export interface Utxo {
   confirmations: number;
   timestamp?: string | null;
   isSpent: boolean;
+  costBasis: number;
 }
 
 export interface Label {
@@ -110,6 +112,7 @@ export interface WalletDetail {
   tags: Tag[];
   categories: Category[];
   metadata: MetadataEntry[];
+  totalCostBasis: number;
   createdAt: string;
 }
 
@@ -253,6 +256,7 @@ export interface CreateLoanRequest {
   currentBtcPrice: number;
   warningLtv: number;
   liquidationLtv: number;
+  collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
 }
@@ -271,6 +275,7 @@ export interface UpdateLoanRequest {
   currentBtcPrice: number;
   warningLtv: number;
   liquidationLtv: number;
+  collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
 }
@@ -292,6 +297,7 @@ export interface LoanSummary {
   liquidationLtv: number;
   distanceToWarning: number;
   distanceToLiquidation: number;
+  collateralCostBasis: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -321,6 +327,7 @@ export interface LoanDetail {
   distanceToWarning: number;
   distanceToLiquidation: number;
   remainingCollateralBuffer: number;
+  collateralCostBasis: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -366,6 +373,9 @@ export interface DashboardOverview {
   collateralBitcoin: number;
   bitcoinPriceUsd: number;
   totalValueUsd: number;
+  totalCostBasis: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
 
   // Treasury
   activeLoanCount: number;
@@ -393,7 +403,10 @@ export interface HoldingsSummary {
   totalBitcoin: number;
   availableBitcoin: number;
   collateralBitcoin: number;
-  totalValueUsd: number;
+  totalValue: number;
+  totalCostBasis: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
   breakdown: HoldingBreakdown[];
 }
 
@@ -401,7 +414,9 @@ export interface HoldingBreakdown {
   category: string;
   bitcoinAmount: number;
   percentage: number;
-  valueUsd: number;
+  value: number;
+  costBasis: number;
+  unrealizedPnl: number;
   count: number;
 }
 
@@ -412,7 +427,9 @@ export interface Holding {
   bitcoinAmount: number;
   availableBitcoin: number;
   lockedBitcoin: number;
-  valueUsd: number;
+  value: number;
+  costBasis: number;
+  unrealizedPnl: number;
   isReadOnly: boolean;
   institution?: string | null;
 }
