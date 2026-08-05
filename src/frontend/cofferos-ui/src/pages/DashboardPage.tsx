@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Activity, Landmark, Server, Wallet as WalletIcon, Zap } from 'lucide-react';
+import { Activity, Landmark, Wallet as WalletIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { BtcPriceInfo, Dashboard, ElectrumStatus, NodeStatus, RecentActivityItem, RecentActivityPage, TreasurySummary } from '../types';
+import type { DashboardOverview, RecentActivityPage, RecentActivityItem } from '../types';
 import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
-import { formatBtc, formatDate, formatPercent, formatUsd, shorten } from '../lib/format';
+import { formatBtc, formatDate, formatFiat, formatPercent, formatUsd, shorten } from '../lib/format';
 import { getTagColorClass } from '../lib/tagColor';
 
 function normalizeActivity(raw: unknown): RecentActivityPage | null {
@@ -44,25 +44,18 @@ function normalizeActivity(raw: unknown): RecentActivityPage | null {
 }
 
 export function DashboardPage() {
-  const [data, setData] = useState<Dashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [node, setNode] = useState<NodeStatus | null>(null);
-  const [nodeLoading, setNodeLoading] = useState(true);
-  const [electrum, setElectrum] = useState<ElectrumStatus | null>(null);
-  const [electrumLoading, setElectrumLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [activity, setActivity] = useState<RecentActivityPage | null>(null);
-  const [treasury, setTreasury] = useState<TreasurySummary | null>(null);
-  const [treasuryLoading, setTreasuryLoading] = useState(true);
-  const [btcPrice, setBtcPrice] = useState<BtcPriceInfo | null>(null);
-  const [btcPriceLoading, setBtcPriceLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  async function load() {
+  async function loadOverview() {
     try {
       setError(null);
-      const d = await api.getDashboard();
-      setData(d);
-      setActivity(normalizeActivity(d.recentActivity));
+      // Single merged call for holdings + treasury + wallet summary + recent activity
+      const o = await api.getDashboardOverview();
+      setOverview(o);
+      setActivity(normalizeActivity(o.recentActivity));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -70,68 +63,8 @@ export function DashboardPage() {
     }
   }
 
-  async function loadTreasury() {
-    setTreasuryLoading(true);
-    try {
-      setTreasury(await api.getTreasurySummary());
-    } catch {
-      setTreasury(null);
-    } finally {
-      setTreasuryLoading(false);
-    }
-  }
-
-  async function loadBtcPrice() {
-    setBtcPriceLoading(true);
-    try {
-      setBtcPrice(await api.getBtcPrice());
-    } catch {
-      setBtcPrice(null);
-    } finally {
-      setBtcPriceLoading(false);
-    }
-  }
-
   useEffect(() => {
-    load();
-  }, []);
-
-  useEffect(() => {
-    loadBtcPrice();
-  }, []);
-
-  useEffect(() => {
-    loadTreasury();
-  }, []);
-
-  async function loadNode() {
-    setNodeLoading(true);
-    try {
-      setNode(await api.getNodeStatus());
-    } catch (e) {
-      setNode({ connected: false, providerId: 'none', error: e instanceof Error ? e.message : 'Failed to load node status' });
-    } finally {
-      setNodeLoading(false);
-    }
-  }
-
-  async function loadElectrum() {
-    setElectrumLoading(true);
-    try {
-      setElectrum(await api.getElectrumStatus());
-    } catch (e) {
-      setElectrum({ connected: false, providerId: 'electrum', host: '', port: 0, error: e instanceof Error ? e.message : 'Failed to load electrum status' });
-    } finally {
-      setElectrumLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadNode();
-  }, []);
-
-  useEffect(() => {
-    loadElectrum();
+    loadOverview();
   }, []);
 
   if (loading) return <Spinner />;
@@ -145,71 +78,53 @@ export function DashboardPage() {
 
       {error && <div className="mb-6 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={<WalletIcon size={18} />} label="Total balance" value={formatBtc(data?.totalBalance.totalSats ?? 0)} />
-        <StatCard icon={<Activity size={18} />} label="Wallets" value={String(data?.walletCount ?? 0)} />
-        <NodeCard node={node} loading={nodeLoading} />
-        <ElectrumCard electrum={electrum} loading={electrumLoading} />
-      </div>
-
-      {/* Bitcoin Price (from Price Engine) */}
-      <div className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Bitcoin Price</h2>
-        {btcPriceLoading ? (
-          <Card className="p-4"><div className="text-sm text-[var(--color-coffer-muted)]">Loading…</div></Card>
-        ) : (
-          <Card className="p-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-              <div>
-                <div className="text-[var(--color-coffer-muted)] text-xs">Current BTC Price</div>
-                <div className="text-xl font-bold">{btcPrice?.price != null ? formatUsd(btcPrice.price) : '—'}</div>
-              </div>
-              <div>
-                <div className="text-[var(--color-coffer-muted)] text-xs">Provider</div>
-                <div>{btcPrice?.displayName ?? btcPrice?.providerId ?? '—'}</div>
-              </div>
-              <div>
-                <div className="text-[var(--color-coffer-muted)] text-xs">Last Updated</div>
-                <div>{btcPrice?.lastUpdated ? formatDate(btcPrice.lastUpdated) : '—'}</div>
-              </div>
-              <div>
-                <div className="text-[var(--color-coffer-muted)] text-xs">Status</div>
-                <div className="text-[var(--color-coffer-muted)]">
-                  {btcPrice?.note ?? (btcPrice?.providerId === 'manual' ? 'Using manually configured Bitcoin price.' : '—')}
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
-      </div>
+      {/* Bitcoin Holdings (from merged overview) */}
+      {overview && (
+        <div className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Bitcoin Holdings</h2>
+            <Link to="/holdings" className="text-xs text-[var(--color-coffer-muted)] hover:text-[var(--color-coffer-orange)]">View holdings →</Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard icon={<WalletIcon size={18} />} label="Total Bitcoin" value={`${overview.totalBitcoin.toFixed(8)} BTC`} />
+            <StatCard icon={<Activity size={18} />} label="Available Bitcoin" value={`${overview.availableBitcoin.toFixed(8)} BTC`} />
+            <StatCard icon={<Landmark size={18} />} label="Locked as Collateral" value={`${overview.collateralBitcoin.toFixed(8)} BTC`} />
+            <StatCard icon={<WalletIcon size={18} />} label="Current USD Value" value={formatUsd(overview.totalValueUsd)} />
+            <StatCard icon={<WalletIcon size={18} />} label="Total Cost Basis" value={formatFiat(overview.totalCostBasis)} />
+            <StatCard icon={<Activity size={18} />} label="Unrealized P&L" value={`${formatFiat(overview.unrealizedPnl)} (${formatPercent(overview.unrealizedPnlPercent)})`} color={overview.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'} />
+          </div>
+        </div>
+      )}
 
       {/* Treasury summary */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Treasury</h2>
-        <Link to="/treasury" className="text-xs text-[var(--color-coffer-muted)] hover:text-[var(--color-coffer-orange)]">Manage loans →</Link>
-      </div>
-      <div className="mb-8">
-        {treasuryLoading ? (
-          <Card className="p-4"><div className="text-sm text-[var(--color-coffer-muted)]">Loading…</div></Card>
-        ) : treasury && treasury.activeLoanCount > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard icon={<Landmark size={18} />} label="Active loans" value={String(treasury.activeLoanCount)} />
-            <StatCard icon={<Landmark size={18} />} label="Total loan balance" value={formatUsd(treasury.totalLoanBalance)} />
-            <StatCard icon={<Landmark size={18} />} label="Total collateral" value={`${treasury.totalCollateralBtc.toFixed(4)} BTC`} />
-            <StatCard icon={<Landmark size={18} />} label="Collateral value" value={formatUsd(treasury.totalCollateralValue)} />
-            <StatCard icon={<Landmark size={18} />} label="Avg LTV" value={formatPercent(treasury.averageLtv)} />
+      {overview && (
+        <>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Treasury</h2>
+            <Link to="/treasury" className="text-xs text-[var(--color-coffer-muted)] hover:text-[var(--color-coffer-orange)]">View Treasury →</Link>
           </div>
-        ) : (
-          <Card className="p-4 text-sm text-[var(--color-coffer-muted)]">
-            No active loans. <Link to="/treasury" className="text-[var(--color-coffer-orange)] hover:underline">Create one</Link> to start tracking Bitcoin-backed loans.
-          </Card>
-        )}
-        {treasury?.highestRiskLoan && (
-          <div className="mt-2 text-xs text-[var(--color-coffer-muted)]">
-            Highest risk: <Link to={`/treasury/${treasury.highestRiskLoan.id}`} className="text-[var(--color-coffer-orange)] hover:underline">{treasury.highestRiskLoan.name}</Link> — LTV {formatPercent(treasury.highestRiskLoan.currentLtv)}
+          <div className="mb-8">
+            {overview.activeLoanCount > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <StatCard icon={<Landmark size={18} />} label="Active loans" value={String(overview.activeLoanCount)} />
+                <StatCard icon={<Landmark size={18} />} label="Total loan balance" value={formatUsd(overview.outstandingLoanBalanceUsd)} />
+                <StatCard icon={<Landmark size={18} />} label="Total collateral" value={`${overview.collateralBitcoin.toFixed(4)} BTC`} />
+                <StatCard icon={<Landmark size={18} />} label="Collateral value" value={formatUsd(overview.collateralBitcoin * overview.bitcoinPriceUsd)} />
+                <StatCard icon={<Landmark size={18} />} label="Avg LTV" value={formatPercent(overview.weightedAverageLtv)} />
+              </div>
+            ) : (
+              <Card className="p-4 text-sm text-[var(--color-coffer-muted)]">
+                No active loans. <Link to="/treasury" className="text-[var(--color-coffer-orange)] hover:underline">Create one</Link> to start tracking Bitcoin-backed loans.
+              </Card>
+            )}
+            {overview.highestRiskLoan && (
+              <div className="mt-2 text-xs text-[var(--color-coffer-muted)]">
+                Highest risk: <Link to={`/treasury/${overview.highestRiskLoan.id}`} className="text-[var(--color-coffer-orange)] hover:underline">{overview.highestRiskLoan.name}</Link> — LTV {formatPercent(overview.highestRiskLoan.currentLtv)}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Recent activity</h2>
       <Card className="p-4">
@@ -309,58 +224,15 @@ export function DashboardPage() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: React.ReactNode; color?: string }) {
   return (
     <Card className="p-4">
       <div className="mb-2 flex items-center gap-2 text-[var(--color-coffer-muted)]">
         {icon}
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <div className="text-xl font-bold">{value}</div>
+      <div className={`text-xl font-bold ${color ?? ''}`}>{value}</div>
     </Card>
   );
 }
 
-function NodeCard({ node, loading }: { node: NodeStatus | null; loading: boolean }) {
-  return (
-    <Card className="p-4">
-      <div className="mb-2 flex items-center gap-2 text-[var(--color-coffer-muted)]">
-        <Server size={18} />
-        <span className="text-xs font-medium uppercase tracking-wide">Node</span>
-      </div>
-      {loading || node === null ? (
-        <div className="text-sm text-[var(--color-coffer-muted)]">Checking...</div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${node.connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
-          <span className="text-sm">
-            {node.connected ? `${node.chain} · ${node.blocks?.toLocaleString()} blocks` : (node.error ?? 'Not connected')}
-          </span>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function ElectrumCard({ electrum, loading }: { electrum: ElectrumStatus | null; loading: boolean }) {
-  return (
-    <Card className="p-4">
-      <div className="mb-2 flex items-center gap-2 text-[var(--color-coffer-muted)]">
-        <Zap size={18} />
-        <span className="text-xs font-medium uppercase tracking-wide">Electrum</span>
-      </div>
-      {loading || electrum === null ? (
-        <div className="text-sm text-[var(--color-coffer-muted)]">Checking...</div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${electrum.connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
-          <span className="text-sm">
-            {electrum.connected
-              ? `${electrum.blockHeight?.toLocaleString()} blocks`
-              : (electrum.error ?? 'Not connected')}
-          </span>
-        </div>
-      )}
-    </Card>
-  );
-}

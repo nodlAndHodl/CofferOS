@@ -1,3 +1,4 @@
+using CofferOS.Application.Abstractions.Dashboard;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
@@ -10,6 +11,11 @@ public static class TreasuryEndpoints
     public static IEndpointRouteBuilder MapTreasuryEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api");
+
+        // Dashboard overview (complete treasury state)
+        api.MapGet("/dashboard/overview", async (IDashboardQueryService dashboard, CancellationToken ct) =>
+                Results.Ok(await dashboard.GetOverviewAsync(ct)))
+            .WithName("GetDashboardOverview");
 
         // Treasury summary (dashboard widget)
         api.MapGet("/treasury/summary", async (TreasuryService treasury, CancellationToken ct) =>

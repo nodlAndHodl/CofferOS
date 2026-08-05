@@ -24,3 +24,9 @@ export function formatPercent(value: number): string {
 export function formatUsd(value: number): string {
   return value.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 }
+
+export function formatFiat(value: number): string {
+  // Central helper for user-provided fiat amounts. A future currency-settings
+  // feature can change the currency code and fraction digits here.
+  return value?.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+}

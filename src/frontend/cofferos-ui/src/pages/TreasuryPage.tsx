@@ -50,8 +50,8 @@ export function TreasuryPage() {
     <div>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Loans</h1>
-          <p className="text-sm text-[var(--color-coffer-muted)]">Bitcoin-collateralized loans (manual entry)</p>
+          <h1 className="text-2xl font-bold">Treasury</h1>
+          <p className="text-sm text-[var(--color-coffer-muted)]">Bitcoin-collateralized loans and liabilities</p>
         </div>
         <Button onClick={() => setShowCreate(true)}>
           <span className="flex items-center gap-2">

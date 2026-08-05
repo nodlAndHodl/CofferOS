@@ -1,5 +1,6 @@
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Contracts;
+using CofferOS.Application.CostBasis;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Wallets;
 
@@ -10,11 +11,13 @@ public sealed class WalletQueryService
 {
     private readonly IWalletRepository _wallets;
     private readonly IWalletReadStore _readStore;
+    private readonly CostBasisService _costBasis;
 
-    public WalletQueryService(IWalletRepository wallets, IWalletReadStore readStore)
+    public WalletQueryService(IWalletRepository wallets, IWalletReadStore readStore, CostBasisService costBasis)
     {
         _wallets = wallets;
         _readStore = readStore;
+        _costBasis = costBasis;
     }
 
     public async Task<IReadOnlyList<WalletSummaryDto>> GetSummariesAsync(CancellationToken cancellationToken = default)
@@ -25,6 +28,8 @@ public sealed class WalletQueryService
         {
             var utxos = await _readStore.GetUtxosAsync(wallet.Id, cancellationToken);
             var txs = await _readStore.GetTransactionsAsync(wallet.Id, cancellationToken);
+            var unspent = utxos.Where(u => !u.IsSpent).ToList();
+            var totalCostBasis = await ComputeUtxoCostBasisAsync(unspent, cancellationToken);
             result.Add(new WalletSummaryDto(
                 wallet.Id,
                 wallet.Name,
@@ -34,6 +39,7 @@ public sealed class WalletQueryService
                 wallet.Descriptors.Count,
                 txs.Count,
                 ComputeBalance(utxos),
+                totalCostBasis,
                 wallet.CreatedAt));
         }
 
@@ -59,6 +65,13 @@ public sealed class WalletQueryService
         var categories = await _readStore.GetCategoriesAsync(walletId, cancellationToken);
         var metadata = await _readStore.GetMetadataAsync(walletId, cancellationToken);
 
+        var unspent = utxos.Where(u => !u.IsSpent).ToList();
+        var costBasisByOutpoint = await _costBasis.GetByReferencesAsync(
+            CostBasisTarget.Utxo,
+            unspent.Select(u => $"{u.TxId}:{u.Vout}").ToList(),
+            cancellationToken);
+        var totalCostBasis = costBasisByOutpoint.Values.Sum();
+
         return new WalletDetailDto(
             wallet.Id,
             wallet.Name,
@@ -77,13 +90,24 @@ public sealed class WalletQueryService
                 d.Addresses.Count)).ToList(),
             addresses.Select(ToDto).ToList(),
             transactions.Select(ToDto).ToList(),
-            utxos.Select(u => ToDto(u, txTimestamps.GetValueOrDefault(u.TxId))).ToList(),
+            utxos.Select(u => ToDto(u, txTimestamps.GetValueOrDefault(u.TxId), costBasisByOutpoint.GetValueOrDefault($"{u.TxId}:{u.Vout}"))).ToList(),
             labels.Select(l => new LabelDto(l.Target.ToString(), l.Reference, l.Text)).ToList(),
             notes.Select(n => new NoteDto(n.Id, n.Target.ToString(), n.Reference, n.Content, n.CreatedAt, n.UpdatedAt)).ToList(),
             tags.Select(t => new TagDto(t.Target.ToString(), t.Reference, t.Value)).ToList(),
             categories.Select(c => new CategoryDto(c.Target.ToString(), c.Reference, c.Name)).ToList(),
             metadata.Select(m => new MetadataEntryDto(m.Target.ToString(), m.Reference, m.Key, m.Value)).ToList(),
+            totalCostBasis,
             wallet.CreatedAt);
+    }
+
+    private async Task<decimal> ComputeUtxoCostBasisAsync(IReadOnlyList<Utxo> unspent, CancellationToken cancellationToken)
+    {
+        if (unspent.Count == 0)
+            return 0m;
+
+        var refs = unspent.Select(u => $"{u.TxId}:{u.Vout}").ToList();
+        var values = await _costBasis.GetByReferencesAsync(CostBasisTarget.Utxo, refs, cancellationToken);
+        return values.Values.Sum();
     }
 
     public static BalanceDto ComputeBalance(IReadOnlyList<Utxo> utxos)
@@ -106,6 +130,6 @@ public sealed class WalletQueryService
     private static TransactionDto ToDto(WalletTransaction t) =>
         new(t.TxId, t.NetAmountSats, t.FeeSats, t.Direction.ToString(), t.Confirmations, t.BlockHeight, t.Timestamp);
 
-    private static UtxoDto ToDto(Utxo u, DateTimeOffset? timestamp) =>
-        new(u.TxId, u.Vout, u.ValueSats, u.Address, u.Confirmations, timestamp, u.IsSpent);
+    private static UtxoDto ToDto(Utxo u, DateTimeOffset? timestamp, decimal costBasis) =>
+        new(u.TxId, u.Vout, u.ValueSats, u.Address, u.Confirmations, timestamp, u.IsSpent, costBasis);
 }

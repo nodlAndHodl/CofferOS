@@ -6,9 +6,10 @@ import type { Address, Note, WalletDetail } from '../types';
 import { WalletTimeline } from '../components/WalletTimeline';
 import { WalletValueSparkline } from '../components/WalletValueSparkline';
 import { InlineMetadataEditor } from '../components/InlineMetadataEditor';
+import { UtxoCostBasisEditor } from '../components/UtxoCostBasisEditor';
 import { Tooltip } from '../components/Tooltip';
 import { Badge, Button, Card, CopyButton, Spinner } from '../components/ui';
-import { formatBtc, formatDate, shorten } from '../lib/format';
+import { formatBtc, formatDate, formatFiat, shorten } from '../lib/format';
 import { useWalletNotifications } from '../hooks/useWalletNotifications';
 
 type Tab = 'addresses' | 'utxos' | 'transactions' | 'descriptors' | 'timeline';
@@ -99,6 +100,9 @@ export function WalletDetailPage() {
                 {formatBtc(wallet.balance.unconfirmedSats)} pending
               </div>
             )}
+            <div className="mt-2 text-sm text-[var(--color-coffer-muted)]">
+              Cost basis {formatFiat(wallet.totalCostBasis)}
+            </div>
           </div>
         </div>
       </div>
@@ -504,6 +508,7 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
             {header('value', 'Value')}
             {header('confirmations', 'Confirmations')}
             <th className="px-4 py-3">Metadata</th>
+            <th className="px-4 py-3">Cost Basis</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>
@@ -538,6 +543,9 @@ function UtxoTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNoteSaved:
               </td>
               <td className="px-4 py-2">
                 <UtxoMetadata wallet={wallet} txId={u.txId} vout={u.vout} onSaved={onNoteSaved} />
+              </td>
+              <td className="px-4 py-2">
+                <UtxoCostBasisEditor utxo={u} onSaved={onNoteSaved} />
               </td>
               <td className="px-4 py-2">
                 <NoteCell
@@ -662,6 +670,7 @@ function TransactionTable({ wallet, onNoteSaved }: { wallet: WalletDetail; onNot
             {header('height', 'Block Height')}
             {header('time', 'Time')}
             <th className="px-4 py-3">Metadata</th>
+            <th className="px-4 py-3">Cost Basis</th>
             <th className="px-4 py-3">Notes</th>
           </tr>
         </thead>

@@ -4,7 +4,10 @@ import type {
   CreateNoteRequest,
   CreateTimelineEventRequest,
   Dashboard,
+  DashboardOverview,
   ElectrumStatus,
+  Holding,
+  HoldingsSummary,
   ImportWalletRequest,
   LoanDetail,
   LoanHistoricalData,
@@ -95,7 +98,9 @@ export const api = {
   getNodeStatus: () => request<NodeStatus>('/node/status'),
   getElectrumStatus: () => request<ElectrumStatus>('/electrum/status'),
 
-  // Treasury / Loans
+  // Merged dashboard overview (holdings + treasury + wallet summary + recent activity)
+  // Node and Electrum status are fetched separately (they can be slow/blocking).
+  getDashboardOverview: () => request<DashboardOverview>('/dashboard/overview'),
   getTreasurySummary: () => request<TreasurySummary>('/treasury/summary'),
   listLoans: () => request<LoanSummary[]>('/loans'),
   getLoan: (id: string) => request<LoanDetail>(`/loans/${id}`),
@@ -106,4 +111,17 @@ export const api = {
   deleteLoan: (id: string) => request<void>(`/loans/${id}`, { method: 'DELETE' }),
   getBtcPrice: () => request<BtcPriceInfo>('/price'),
   getLoanHistoricalData: (id: string) => request<LoanHistoricalData>(`/loans/${id}/historical`),
+
+  // Cost basis
+  setCostBasis: (target: string, reference: string, amount: number) =>
+    request<void>(`/cost-basis/${encodeURIComponent(target)}/${encodeURIComponent(reference)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ amount }),
+    }),
+  clearCostBasis: (target: string, reference: string) =>
+    request<void>(`/cost-basis/${encodeURIComponent(target)}/${encodeURIComponent(reference)}`, { method: 'DELETE' }),
+
+  // Holdings
+  getHoldingsSummary: () => request<HoldingsSummary>('/holdings/summary'),
+  listHoldings: () => request<Holding[]>('/holdings/'),
 };

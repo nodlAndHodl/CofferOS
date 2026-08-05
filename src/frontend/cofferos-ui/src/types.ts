@@ -14,6 +14,7 @@ export interface WalletSummary {
   descriptorCount: number;
   transactionCount: number;
   balance: Balance;
+  totalCostBasis: number;
   createdAt: string;
 }
 
@@ -58,6 +59,7 @@ export interface Utxo {
   confirmations: number;
   timestamp?: string | null;
   isSpent: boolean;
+  costBasis: number;
 }
 
 export interface Label {
@@ -110,6 +112,7 @@ export interface WalletDetail {
   tags: Tag[];
   categories: Category[];
   metadata: MetadataEntry[];
+  totalCostBasis: number;
   createdAt: string;
 }
 
@@ -253,6 +256,7 @@ export interface CreateLoanRequest {
   currentBtcPrice: number;
   warningLtv: number;
   liquidationLtv: number;
+  collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
 }
@@ -271,6 +275,7 @@ export interface UpdateLoanRequest {
   currentBtcPrice: number;
   warningLtv: number;
   liquidationLtv: number;
+  collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
 }
@@ -292,6 +297,7 @@ export interface LoanSummary {
   liquidationLtv: number;
   distanceToWarning: number;
   distanceToLiquidation: number;
+  collateralCostBasis: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -321,6 +327,7 @@ export interface LoanDetail {
   distanceToWarning: number;
   distanceToLiquidation: number;
   remainingCollateralBuffer: number;
+  collateralCostBasis: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -359,3 +366,70 @@ export interface LoanHistoricalData {
   snapshots: LoanPriceSnapshot[];
 }
 
+export interface DashboardOverview {
+  // Holdings
+  totalBitcoin: number;
+  availableBitcoin: number;
+  collateralBitcoin: number;
+  bitcoinPriceUsd: number;
+  totalValueUsd: number;
+  totalCostBasis: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
+
+  // Treasury
+  activeLoanCount: number;
+  outstandingLoanBalanceUsd: number;
+  weightedAverageLtv: number;
+  highestRiskLoan?: LoanSummary | null;
+
+  // Wallet summary + activity (merged from old dashboard)
+  walletCount: number;
+  totalBalance: Balance;
+  wallets: WalletSummary[];
+  recentActivity: RecentActivityPage;
+
+  // Metadata
+  lastUpdatedUtc: string;
+}
+
+// Keep old name as alias for now if referenced elsewhere, but prefer DashboardOverview
+export type TreasuryOverview = DashboardOverview;
+
+// Holdings (first-class domain concept)
+export type HoldingType = 'Wallet' | 'LoanCollateral' | 'Lightning' | 'Retirement' | 'Etf' | 'Mining' | 'Manual';
+
+export interface HoldingsSummary {
+  totalBitcoin: number;
+  availableBitcoin: number;
+  collateralBitcoin: number;
+  totalValue: number;
+  totalCostBasis: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
+  breakdown: HoldingBreakdown[];
+}
+
+export interface HoldingBreakdown {
+  category: string;
+  bitcoinAmount: number;
+  percentage: number;
+  value: number;
+  costBasis: number;
+  unrealizedPnl: number;
+  count: number;
+}
+
+export interface Holding {
+  id: string;
+  type: HoldingType;
+  name: string;
+  bitcoinAmount: number;
+  availableBitcoin: number;
+  lockedBitcoin: number;
+  value: number;
+  costBasis: number;
+  unrealizedPnl: number;
+  isReadOnly: boolean;
+  institution?: string | null;
+}

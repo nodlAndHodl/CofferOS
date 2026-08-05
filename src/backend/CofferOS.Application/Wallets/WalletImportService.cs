@@ -87,6 +87,7 @@ public sealed class WalletImportService
             wallet.Descriptors.Count,
             txs.Count,
             balance,
+            0m,
             wallet.CreatedAt);
     }
 
