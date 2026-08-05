@@ -16,7 +16,6 @@ public sealed class CostBasisRepository : ICostBasisRepository
 
     public Task<CostBasisEntry?> GetAsync(CostBasisTarget target, string reference, CancellationToken cancellationToken = default)
         => _context.CostBasisEntries
-            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Target == target && x.Reference == reference, cancellationToken);
 
     public Task<IReadOnlyList<CostBasisEntry>> GetByReferencesAsync(

@@ -1,6 +1,9 @@
+using System.Text.Json.Serialization;
+
 namespace CofferOS.Application.Contracts;
 
 /// <summary>Type of Bitcoin holding source.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum HoldingType
 {
     Wallet,
