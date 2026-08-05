@@ -1,4 +1,5 @@
 using CofferOS.Domain.Common;
+using CofferOS.Domain.Retirement;
 using CofferOS.Domain.Treasury;
 using CofferOS.Domain.Wallets;
 
@@ -114,6 +115,15 @@ public interface ILoanPriceSnapshotRepository
     Task AddAsync(LoanPriceSnapshot snapshot, CancellationToken cancellationToken = default);
     Task AddRangeAsync(IEnumerable<LoanPriceSnapshot> snapshots, CancellationToken cancellationToken = default);
     void Remove(LoanPriceSnapshot snapshot);
+}
+
+/// <summary>Read/write access to retirement accounts. Standalone aggregate (manual entry).</summary>
+public interface IRetirementAccountRepository
+{
+    Task<RetirementAccount?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RetirementAccount>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task AddAsync(RetirementAccount account, CancellationToken cancellationToken = default);
+    void Remove(RetirementAccount account);
 }
 
 /// <summary>Read/write access to user-provided cost basis amounts.</summary>

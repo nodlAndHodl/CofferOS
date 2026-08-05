@@ -77,6 +77,7 @@ app.UseWebSockets();
 app.MapCofferOsEndpoints();
 app.MapTreasuryEndpoints();
 app.MapHoldingsEndpoints();
+app.MapRetirementAccountEndpoints();
 app.MapCostBasisEndpoints();
 app.MapWebSocketEndpoints();
 

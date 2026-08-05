@@ -1,5 +1,6 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Domain.Common;
+using CofferOS.Domain.Retirement;
 using CofferOS.Domain.Treasury;
 using CofferOS.Domain.Wallets;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +37,8 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
     public DbSet<LoanPriceSnapshot> LoanPriceSnapshots => Set<LoanPriceSnapshot>();
+    public DbSet<RetirementAccount> RetirementAccounts => Set<RetirementAccount>();
+    public DbSet<RetirementAccountCostBasis> RetirementAccountCostBasisEntries => Set<RetirementAccountCostBasis>();
     public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
     public DbSet<CostBasisEntry> CostBasisEntries => Set<CostBasisEntry>();
 
@@ -244,6 +247,35 @@ public sealed class CofferOSDbContext : DbContext
             b.HasIndex(x => x.LoanId);
             b.HasIndex(x => x.SnapshotDate);
             b.HasIndex(x => new { x.LoanId, x.SnapshotDate });
+        });
+
+        modelBuilder.Entity<RetirementAccount>(b =>
+        {
+            b.ToTable("retirement_accounts");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Name).IsRequired().HasMaxLength(200);
+            b.Property(x => x.AccountType).HasConversion<string>().HasMaxLength(30);
+            b.Property(x => x.Provider).IsRequired().HasMaxLength(200);
+            b.Property(x => x.BitcoinAmount).HasPrecision(18, 8);
+            b.Property(x => x.Notes).HasMaxLength(4000);
+            b.Property(x => x.CreatedAt);
+            b.Property(x => x.UpdatedAt);
+
+            b.HasMany(x => x.CostBasisEntries).WithOne().HasForeignKey(c => c.AccountId).OnDelete(DeleteBehavior.Cascade);
+            b.Navigation(x => x.CostBasisEntries).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+            b.HasIndex(x => x.CreatedAt);
+        });
+
+        modelBuilder.Entity<RetirementAccountCostBasis>(b =>
+        {
+            b.ToTable("retirement_account_cost_basis");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.AccountId);
+            b.Property(x => x.CostBasis).HasPrecision(18, 8);
+            b.Property(x => x.AcquisitionDate);
+            b.Property(x => x.CreatedAt);
+            b.HasIndex(x => x.AccountId);
         });
 
         modelBuilder.Entity<CostBasisEntry>(b =>

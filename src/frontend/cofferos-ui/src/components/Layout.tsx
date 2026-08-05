@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Coins, Landmark, LayoutDashboard, Server, Settings, Shield } from 'lucide-react';
+import { Coins, Landmark, LayoutDashboard, Server, Settings, Shield, Wallet } from 'lucide-react';
 
 export function Layout({ children }: { children: ReactNode }) {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -27,6 +27,9 @@ export function Layout({ children }: { children: ReactNode }) {
           </NavLink>
           <NavLink to="/holdings" className={navLinkClass}>
             <Coins size={18} /> Holdings
+          </NavLink>
+          <NavLink to="/wallets" className={navLinkClass}>
+            <Wallet size={18} /> Wallets
           </NavLink>
           <NavLink to="/treasury" className={navLinkClass}>
             <Landmark size={18} /> Treasury

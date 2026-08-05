@@ -11,6 +11,7 @@ using CofferOS.Domain.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NBitcoin;
+using ScriptType = CofferOS.Domain.Common.ScriptType;
 
 namespace CofferOS.Integrations.BitcoinCore;
 
@@ -59,7 +60,7 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
         await HandshakeAsync(writer, reader, token);
 
         // Gap-limit discovery: only addresses that appear in history can hold UTXOs.
-        var discovery = await DiscoverAsync(writer, reader, descriptors.Select(d => (Guid.Empty, d)).ToList(), token);
+        var discovery = await DiscoverAsync(writer, reader, descriptors.Select(d => (Guid.Empty, d, ScriptType.Unknown)).ToList(), token);
         var scripthashes = discovery.ActiveAddresses;
         _logger.LogInformation("Gap-limit scan found {Count} active addresses; querying UTXOs...", scripthashes.Count);
 
@@ -110,7 +111,7 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
     }
 
     public async Task<WalletHistoryScan> GetWalletHistoryAsync(
-        IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
+        IReadOnlyCollection<(Guid DescriptorId, string Raw, ScriptType ScriptType)> descriptors,
         CancellationToken cancellationToken = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -242,13 +243,15 @@ public sealed class ElectrumServerProvider : IUtxoProvider, IWalletHistoryProvid
     private async Task<ScanDiscovery> DiscoverAsync(
         StreamWriter writer,
         StreamReader reader,
-        IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
+        IReadOnlyCollection<(Guid DescriptorId, string Raw, ScriptType ScriptType)> descriptors,
         CancellationToken token)
     {
         var discovery = new ScanDiscovery();
-        foreach (var (descriptorId, raw) in descriptors)
+        foreach (var (descriptorId, raw, scriptType) in descriptors)
         {
             var (parsed, network) = ParseDescriptor(raw);
+            if (scriptType != ScriptType.Unknown)
+                parsed = parsed with { ScriptType = scriptType };
             discovery.Network ??= ToNetwork(network);
             await ScanChainAsync(writer, reader, discovery, parsed, network, descriptorId, change: false, token);
             await ScanChainAsync(writer, reader, discovery, parsed, network, descriptorId, change: true, token);

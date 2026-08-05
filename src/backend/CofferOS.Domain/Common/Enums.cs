@@ -120,5 +120,19 @@ public enum InterestPaymentSchedule
 public enum CostBasisTarget
 {
     Utxo = 0,
-    LoanCollateral = 1
+    LoanCollateral = 1,
+    RetirementAccount = 2
+}
+
+/// <summary>Type of retirement account.</summary>
+public enum RetirementAccountType
+{
+    TraditionalIra = 0,
+    RothIra = 1,
+    SepIra = 2,
+    SimpleIra = 3,
+    Solo401k = 4,
+    Traditional401k = 5,
+    Roth401k = 6,
+    Other = 7
 }

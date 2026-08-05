@@ -76,7 +76,7 @@ export function HoldingsPage() {
           valueUsd={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.value}
           costBasis={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.costBasis}
           unrealizedPnl={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.unrealizedPnl}
-          linkTo="/holdings/wallets"
+          linkTo="/wallets"
         />
 
         {/* Collateral */}
@@ -100,13 +100,16 @@ export function HoldingsPage() {
           comingSoon
         />
 
-        {/* Retirement - Coming Soon */}
+        {/* Retirement Accounts */}
         <HoldingCategoryCard
           icon={<Building2 size={20} />}
-          title="Retirement"
-          subtitle="Coming Soon"
-          btcAmount={0}
-          comingSoon
+          title="Retirement Accounts"
+          subtitle={`${holdings.filter(h => h.type === 'Retirement').length} Account${holdings.filter(h => h.type === 'Retirement').length !== 1 ? 's' : ''}`}
+          btcAmount={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.bitcoinAmount ?? 0}
+          valueUsd={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.value}
+          costBasis={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.costBasis}
+          unrealizedPnl={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.unrealizedPnl}
+          linkTo="/holdings/retirement"
         />
 
         {/* ETF Holdings - Coming Soon */}
@@ -133,35 +136,52 @@ export function HoldingsPage() {
         <div className="mt-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">All Holdings</h2>
           <div className="grid gap-3">
-            {holdings.map((h) => (
-              <Link
-                key={`${h.type}-${h.id}`}
-                to={h.type === 'Wallet' ? `/wallets/${h.id}` : `/treasury/${h.id}`}
-              >
-                <Card className="p-4 transition hover:border-[var(--color-coffer-orange)]/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--color-coffer-border)]">
-                        {h.type === 'Wallet' ? <Wallet size={16} /> : <Lock size={16} />}
-                      </div>
-                      <div>
-                        <div className="font-semibold">{h.name}</div>
-                        <div className="text-xs text-[var(--color-coffer-muted)]">
-                          {h.type === 'Wallet' ? 'Self-Custody Wallet' : 'Loan Collateral'}
-                          {h.institution && ` · ${h.institution}`}
+            {holdings.map((h) => {
+              const getLink = () => {
+                if (h.type === 'Wallet') return `/wallets/${h.id}`;
+                if (h.type === 'Retirement') return `/holdings/retirement/${h.id}`;
+                return `/treasury/${h.id}`;
+              };
+
+              const getIcon = () => {
+                if (h.type === 'Wallet') return <Wallet size={16} />;
+                if (h.type === 'Retirement') return <Building2 size={16} />;
+                return <Lock size={16} />;
+              };
+
+              const getTypeLabel = () => {
+                if (h.type === 'Wallet') return 'Self-Custody Wallet';
+                if (h.type === 'Retirement') return 'Retirement Account';
+                return 'Loan Collateral';
+              };
+
+              return (
+                <Link key={`${h.type}-${h.id}`} to={getLink()}>
+                  <Card className="p-4 transition hover:border-[var(--color-coffer-orange)]/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--color-coffer-border)]">
+                          {getIcon()}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{h.name}</div>
+                          <div className="text-xs text-[var(--color-coffer-muted)]">
+                            {getTypeLabel()}
+                            {h.institution && ` · ${h.institution}`}
+                          </div>
                         </div>
                       </div>
+                      <div className="text-right">
+                        <div className="font-bold">{h.bitcoinAmount.toFixed(8)} BTC</div>
+                        {h.value > 0 && (
+                          <div className="text-xs text-[var(--color-coffer-muted)]">{formatFiat(h.value)}</div>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-bold">{h.bitcoinAmount.toFixed(8)} BTC</div>
-                      {h.value > 0 && (
-                        <div className="text-xs text-[var(--color-coffer-muted)]">{formatFiat(h.value)}</div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            ))}
+                  </Card>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
