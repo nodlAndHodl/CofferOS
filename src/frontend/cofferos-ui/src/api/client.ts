@@ -1,7 +1,9 @@
 import type {
   BtcPriceInfo,
+  CostBasisEntryInput,
   CreateLoanRequest,
   CreateNoteRequest,
+  CreateRetirementAccountRequest,
   CreateTimelineEventRequest,
   Dashboard,
   DashboardOverview,
@@ -16,11 +18,13 @@ import type {
   Note,
   ObjectMetadata,
   RecentActivityPage,
+  RetirementAccount,
   TimelineEvent,
   TreasurySummary,
   UpdateLoanRequest,
   UpdateMetadataRequest,
   UpdateNoteRequest,
+  UpdateRetirementAccountRequest,
   UpdateTimelineEventRequest,
   WalletDetail,
   WalletSummary,
@@ -124,4 +128,26 @@ export const api = {
   // Holdings
   getHoldingsSummary: () => request<HoldingsSummary>('/holdings/summary'),
   listHoldings: () => request<Holding[]>('/holdings/'),
+
+  // Retirement Accounts
+  listRetirementAccounts: () => request<RetirementAccount[]>('/retirement-accounts/'),
+  getRetirementAccount: (id: string) => request<RetirementAccount>(`/retirement-accounts/${id}`),
+  createRetirementAccount: (payload: CreateRetirementAccountRequest) =>
+    request<RetirementAccount>('/retirement-accounts/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateRetirementAccount: (id: string, payload: UpdateRetirementAccountRequest) =>
+    request<RetirementAccount>(`/retirement-accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+  deleteRetirementAccount: (id: string) => request<void>(`/retirement-accounts/${id}`, { method: 'DELETE' }),
+  addCostBasisEntry: (id: string, entry: CostBasisEntryInput) =>
+    request<RetirementAccount>(`/retirement-accounts/${id}/cost-basis`, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    }),
+  removeCostBasisEntry: (id: string, entryId: string) =>
+    request<RetirementAccount>(`/retirement-accounts/${id}/cost-basis/${entryId}`, { method: 'DELETE' }),
 };

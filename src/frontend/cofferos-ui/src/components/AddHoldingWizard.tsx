@@ -3,13 +3,14 @@ import { Building2, HardDrive, Landmark, Lock, Wallet, X, Zap } from 'lucide-rea
 import { Button } from './ui';
 import { ImportWalletModal } from './ImportWalletModal';
 import { CreateLoanModal } from './CreateLoanModal';
+import { CreateRetirementAccountModal } from './CreateRetirementAccountModal';
 
 interface Props {
   onClose: () => void;
   onComplete: () => void;
 }
 
-type HoldingChoice = 'wallet' | 'loan' | null;
+type HoldingChoice = 'wallet' | 'loan' | 'retirement' | null;
 
 interface HoldingOption {
   id: HoldingChoice;
@@ -42,11 +43,11 @@ const holdingOptions: HoldingOption[] = [
     enabled: false,
   },
   {
-    id: null,
+    id: 'retirement',
     icon: <Building2 size={20} />,
     label: 'Retirement Account',
     description: 'IRA or 401k Bitcoin positions',
-    enabled: false,
+    enabled: true,
   },
   {
     id: null,
@@ -68,12 +69,15 @@ export function AddHoldingWizard({ onClose, onComplete }: Props) {
   const [selected, setSelected] = useState<HoldingChoice>(null);
   const [showWalletImport, setShowWalletImport] = useState(false);
   const [showLoanCreate, setShowLoanCreate] = useState(false);
+  const [showRetirementCreate, setShowRetirementCreate] = useState(false);
 
   function handleContinue() {
     if (selected === 'wallet') {
       setShowWalletImport(true);
     } else if (selected === 'loan') {
       setShowLoanCreate(true);
+    } else if (selected === 'retirement') {
+      setShowRetirementCreate(true);
     }
   }
 
@@ -92,6 +96,18 @@ export function AddHoldingWizard({ onClose, onComplete }: Props) {
   if (showLoanCreate) {
     return (
       <CreateLoanModal
+        onClose={onClose}
+        onCreated={() => {
+          onComplete();
+          onClose();
+        }}
+      />
+    );
+  }
+
+  if (showRetirementCreate) {
+    return (
+      <CreateRetirementAccountModal
         onClose={onClose}
         onCreated={() => {
           onComplete();

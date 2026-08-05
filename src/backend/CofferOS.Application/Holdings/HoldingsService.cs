@@ -16,17 +16,20 @@ public sealed class HoldingsService : IHoldingsService
 {
     private readonly WalletQueryService _walletQueries;
     private readonly ILoanRepository _loans;
+    private readonly IRetirementAccountRepository _retirementAccounts;
     private readonly IBitcoinPriceProvider _priceProvider;
     private readonly CostBasisService _costBasis;
 
     public HoldingsService(
         WalletQueryService walletQueries,
         ILoanRepository loans,
+        IRetirementAccountRepository retirementAccounts,
         IBitcoinPriceProvider priceProvider,
         CostBasisService costBasis)
     {
         _walletQueries = walletQueries;
         _loans = loans;
+        _retirementAccounts = retirementAccounts;
         _priceProvider = priceProvider;
         _costBasis = costBasis;
     }
@@ -39,6 +42,7 @@ public sealed class HoldingsService : IHoldingsService
 
         var walletSummaries = await _walletQueries.GetSummariesAsync(cancellationToken);
         var activeLoans = await _loans.GetActiveAsync(cancellationToken);
+        var retirementAccounts = await _retirementAccounts.GetAllAsync(cancellationToken);
 
         // Cost basis
         var walletCostBasis = walletSummaries.Sum(w => w.TotalCostBasis);
@@ -50,7 +54,9 @@ public sealed class HoldingsService : IHoldingsService
             cancellationToken);
         var collateralCostBasis = loanCostBasisById.Values.Sum();
 
-        var totalCostBasis = walletCostBasis + collateralCostBasis;
+        var retirementCostBasis = retirementAccounts.Sum(a => a.GetTotalCostBasis());
+
+        var totalCostBasis = walletCostBasis + collateralCostBasis + retirementCostBasis;
         var unrealizedPnl = totalValue - totalCostBasis;
         var unrealizedPnlPercent = totalCostBasis > 0 ? unrealizedPnl / totalCostBasis : 0m;
 
@@ -61,6 +67,8 @@ public sealed class HoldingsService : IHoldingsService
             walletBtc += w.Balance.TotalBtc;
 
         decimal collateralBtc = breakdown.CollateralBitcoin;
+
+        decimal retirementBtc = retirementAccounts.Sum(a => a.BitcoinAmount);
 
         if (walletBtc > 0)
         {
@@ -92,6 +100,21 @@ public sealed class HoldingsService : IHoldingsService
             });
         }
 
+        if (retirementBtc > 0)
+        {
+            var retirementValue = retirementBtc * btcPrice;
+            categories.Add(new HoldingBreakdownDto
+            {
+                Category = "Retirement Accounts",
+                BitcoinAmount = retirementBtc,
+                Percentage = breakdown.TotalBitcoin > 0 ? retirementBtc / breakdown.TotalBitcoin : 0,
+                Value = retirementValue,
+                CostBasis = retirementCostBasis,
+                UnrealizedPnl = retirementValue - retirementCostBasis,
+                Count = retirementAccounts.Count
+            });
+        }
+
         return new HoldingsSummaryDto
         {
             TotalBitcoin = breakdown.TotalBitcoin,
@@ -110,6 +133,7 @@ public sealed class HoldingsService : IHoldingsService
         var btcPrice = await _priceProvider.GetCurrentPriceAsync(cancellationToken) ?? 0m;
         var walletSummaries = await _walletQueries.GetSummariesAsync(cancellationToken);
         var activeLoans = await _loans.GetActiveAsync(cancellationToken);
+        var retirementAccounts = await _retirementAccounts.GetAllAsync(cancellationToken);
 
         var holdings = new List<HoldingDto>();
 
@@ -158,6 +182,26 @@ public sealed class HoldingsService : IHoldingsService
             });
         }
 
+        foreach (var account in retirementAccounts)
+        {
+            var value = account.BitcoinAmount * btcPrice;
+            var costBasis = account.GetTotalCostBasis();
+            holdings.Add(new HoldingDto
+            {
+                Id = account.Id,
+                Type = HoldingType.Retirement,
+                Name = account.Name,
+                BitcoinAmount = account.BitcoinAmount,
+                AvailableBitcoin = account.BitcoinAmount,
+                LockedBitcoin = 0m,
+                Value = value,
+                CostBasis = costBasis,
+                UnrealizedPnl = value - costBasis,
+                IsReadOnly = false,
+                Institution = account.Provider
+            });
+        }
+
         return holdings;
     }
 
@@ -196,9 +240,16 @@ public sealed class HoldingsService : IHoldingsService
             totalCollateralBtc += loan.CollateralAmountBtc;
         }
 
-        // Total = wallets + collateral (collateral is separate Bitcoin held at lenders)
-        // Available = wallet balance (fully available, not reduced by collateral)
-        decimal totalBtc = totalWalletBtc + totalCollateralBtc;
+        decimal totalRetirementBtc = 0m;
+        var retirementAccounts = await _retirementAccounts.GetAllAsync(cancellationToken);
+        foreach (var account in retirementAccounts)
+        {
+            totalRetirementBtc += account.BitcoinAmount;
+        }
+
+        // Total = wallets + collateral + retirement
+        // Available = wallet balance + retirement (both fully available, not reduced by collateral)
+        decimal totalBtc = totalWalletBtc + totalCollateralBtc + totalRetirementBtc;
 
         var sources = new List<HoldingSource>
         {
@@ -213,12 +264,18 @@ public sealed class HoldingsService : IHoldingsService
                 DisplayName: "Loan Collateral",
                 TotalBitcoin: totalCollateralBtc,
                 AvailableBitcoin: 0m,
-                CollateralBitcoin: totalCollateralBtc)
+                CollateralBitcoin: totalCollateralBtc),
+            new HoldingSource(
+                SourceType: "Retirement",
+                DisplayName: "Retirement Accounts",
+                TotalBitcoin: totalRetirementBtc,
+                AvailableBitcoin: totalRetirementBtc,
+                CollateralBitcoin: 0m)
         };
 
         return new HoldingsBreakdown(
             TotalBitcoin: totalBtc,
-            AvailableBitcoin: totalWalletBtc,
+            AvailableBitcoin: totalWalletBtc + totalRetirementBtc,
             CollateralBitcoin: totalCollateralBtc,
             Sources: sources);
     }

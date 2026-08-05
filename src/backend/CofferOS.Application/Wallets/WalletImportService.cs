@@ -44,6 +44,13 @@ public sealed class WalletImportService
         // Parse first so we fail before creating anything if the input is invalid.
         var parsed = _parser.Parse(request.Descriptor.Trim(), network);
 
+        if (!string.IsNullOrWhiteSpace(request.ScriptTypeOverride) &&
+            Enum.TryParse<ScriptType>(request.ScriptTypeOverride, ignoreCase: true, out var overrideType) &&
+            overrideType != ScriptType.Unknown)
+        {
+            parsed = parsed with { ScriptType = overrideType };
+        }
+
         var wallet = Wallet.Create(request.Name, request.Description, network);
         var cosignerEntities = parsed.Cosigners
             .Select((c, i) => new Cosigner(i, c.MasterFingerprint, c.OriginPath, c.KeyExpression))

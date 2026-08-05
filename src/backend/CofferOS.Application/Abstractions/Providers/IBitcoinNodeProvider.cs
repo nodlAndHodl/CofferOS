@@ -77,7 +77,7 @@ public sealed record NodeUtxo(
 public interface IWalletHistoryProvider
 {
     Task<WalletHistoryScan> GetWalletHistoryAsync(
-        IReadOnlyCollection<(Guid DescriptorId, string Raw)> descriptors,
+        IReadOnlyCollection<(Guid DescriptorId, string Raw, ScriptType ScriptType)> descriptors,
         CancellationToken cancellationToken = default);
 
     /// <summary>Returns the current chain tip from the history provider, used to compute confirmations.</summary>

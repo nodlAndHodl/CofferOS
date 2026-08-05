@@ -6,7 +6,8 @@ public sealed record ImportWalletRequest(
     string? Description,
     string Descriptor,
     string Network = "Mainnet",
-    int InitialAddressCount = 20);
+    int InitialAddressCount = 20,
+    string? ScriptTypeOverride = null);
 
 public sealed record BalanceDto(long ConfirmedSats, long UnconfirmedSats, long TotalSats, decimal TotalBtc);
 

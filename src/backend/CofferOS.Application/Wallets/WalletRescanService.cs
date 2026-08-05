@@ -38,7 +38,7 @@ public sealed class WalletRescanService
             ?? throw new InvalidOperationException("Wallet not found.");
 
         var rawDescriptors = wallet.Descriptors.Select(d => d.Raw).ToList();
-        var descriptorsWithId = wallet.Descriptors.Select(d => (d.Id, d.Raw)).ToList();
+        var descriptorsWithId = wallet.Descriptors.Select(d => (d.Id, d.Raw, d.ScriptType)).ToList();
 
         var historyProvider = _historyProviders.FirstOrDefault();
         WalletHistoryScan? history = null;

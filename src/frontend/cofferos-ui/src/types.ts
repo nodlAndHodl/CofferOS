@@ -229,6 +229,7 @@ export interface ImportWalletRequest {
   descriptor: string;
   network: string;
   initialAddressCount: number;
+  scriptTypeOverride?: string;
 }
 
 export interface CreateNoteRequest {
@@ -432,4 +433,59 @@ export interface Holding {
   unrealizedPnl: number;
   isReadOnly: boolean;
   institution?: string | null;
+}
+
+// Retirement Accounts
+export type RetirementAccountType = 
+  | 'TraditionalIra' 
+  | 'RothIra' 
+  | 'SepIra' 
+  | 'SimpleIra' 
+  | 'Solo401k' 
+  | 'Traditional401k' 
+  | 'Roth401k' 
+  | 'Other';
+
+export interface RetirementAccountCostBasis {
+  id: string;
+  costBasis: number;
+  acquisitionDate: string;
+  createdAt: string;
+}
+
+export interface RetirementAccount {
+  id: string;
+  name: string;
+  accountType: RetirementAccountType;
+  provider: string;
+  bitcoinAmount: number;
+  notes?: string | null;
+  totalCostBasis: number;
+  costBasisEntries: RetirementAccountCostBasis[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateRetirementAccountRequest {
+  name: string;
+  accountType: RetirementAccountType;
+  provider: string;
+  bitcoinAmount: number;
+  notes?: string;
+  costBasisEntries?: Array<{
+    costBasis: number;
+    acquisitionDate: string;
+  }>;
+}
+
+export interface UpdateRetirementAccountRequest {
+  name: string;
+  provider: string;
+  bitcoinAmount: number;
+  notes?: string;
+}
+
+export interface CostBasisEntryInput {
+  costBasis: number;
+  acquisitionDate: string;
 }

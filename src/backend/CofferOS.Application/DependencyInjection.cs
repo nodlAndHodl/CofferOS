@@ -6,6 +6,7 @@ using CofferOS.Application.Abstractions.Treasury;
 using CofferOS.Application.Dashboard;
 using CofferOS.Application.Holdings;
 using CofferOS.Application.Prices;
+using CofferOS.Application.Retirement;
 using CofferOS.Application.Treasury;
 using CofferOS.Application.Wallets;
 using CofferOS.Application.Wallets.EventHandlers;
@@ -28,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<WalletTimelineService>();
         services.AddScoped<DashboardService>();
         services.AddScoped<TreasuryService>();
+        services.AddScoped<RetirementAccountService>();
         services.AddScoped<ILoanAccrualService, LoanAccrualService>();
 
         // Dashboard / Holdings / Treasury aggregation services
