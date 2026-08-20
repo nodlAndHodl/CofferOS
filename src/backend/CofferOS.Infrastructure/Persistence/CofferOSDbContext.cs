@@ -1,6 +1,7 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Retirement;
+using CofferOS.Domain.Settings;
 using CofferOS.Domain.Treasury;
 using CofferOS.Domain.Wallets;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +42,7 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<RetirementAccountCostBasis> RetirementAccountCostBasisEntries => Set<RetirementAccountCostBasis>();
     public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
     public DbSet<CostBasisEntry> CostBasisEntries => Set<CostBasisEntry>();
+    public DbSet<UserSettings> UserSettings => Set<UserSettings>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -243,6 +245,7 @@ public sealed class CofferOSDbContext : DbContext
             b.HasKey(x => x.Id);
             b.Property(x => x.LoanId);
             b.Property(x => x.PriceUsd).HasPrecision(18, 8);
+            b.Property(x => x.Currency).IsRequired().HasMaxLength(3);
             b.Property(x => x.Source).IsRequired().HasMaxLength(50);
             b.HasIndex(x => x.LoanId);
             b.HasIndex(x => x.SnapshotDate);
@@ -299,6 +302,14 @@ public sealed class CofferOSDbContext : DbContext
             b.Property(x => x.Provider).IsRequired().HasMaxLength(50);
             b.HasIndex(x => x.Timestamp);
             b.HasIndex(x => x.Provider);
+        });
+
+        modelBuilder.Entity<UserSettings>(b =>
+        {
+            b.ToTable("user_settings");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.SettingsJson).IsRequired();
+            b.Property(x => x.UpdatedAt);
         });
     }
 

@@ -5,8 +5,11 @@ import { api } from '../api/client';
 import type { DashboardOverview, RecentActivityPage, RecentActivityItem } from '../types';
 import { Badge, Card, CopyButton, Spinner } from '../components/ui';
 import { Tooltip } from '../components/Tooltip';
-import { formatBtc, formatDate, formatFiat, formatPercent, formatUsd, shorten } from '../lib/format';
+import { formatBtc, formatDate, formatPercent, shorten } from '../lib/format';
 import { getTagColorClass } from '../lib/tagColor';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
+import { formatForDisplay } from '../lib/currency';
 
 function normalizeActivity(raw: unknown): RecentActivityPage | null {
   const page = raw as any;
@@ -49,10 +52,19 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { settings } = useUserSettings();
+  const { priceUsd, exchangeRates, isLive } = useBitcoinPrice();
+
+  const currency = settings.currency;
+  const fmt = (usd: number) => formatForDisplay(usd, 'USD', currency, exchangeRates);
+
+  // Use live price to calculate current values when available
+  const livePrice = priceUsd ?? overview?.bitcoinPriceUsd ?? 0;
+  const liveTotalValue = overview ? overview.totalBitcoin * livePrice : 0;
+
   async function loadOverview() {
     try {
       setError(null);
-      // Single merged call for holdings + treasury + wallet summary + recent activity
       const o = await api.getDashboardOverview();
       setOverview(o);
       setActivity(normalizeActivity(o.recentActivity));
@@ -71,9 +83,18 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-[var(--color-coffer-muted)]">Your Bitcoin treasury at a glance</p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-sm text-[var(--color-coffer-muted)]">Your Bitcoin treasury at a glance</p>
+        </div>
+        {livePrice > 0 && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-[var(--color-coffer-border)] px-3 py-1.5 text-sm">
+            <span className={`h-2 w-2 rounded-full ${isLive ? 'animate-pulse bg-green-400' : 'bg-[var(--color-coffer-muted)]'}`} />
+            <span className="font-mono font-semibold">{fmt(livePrice)}</span>
+            <span className="text-xs text-[var(--color-coffer-muted)]">BTC/{currency}{isLive ? ' · LIVE' : ''}</span>
+          </div>
+        )}
       </div>
 
       {error && <div className="mb-6 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
@@ -89,9 +110,9 @@ export function DashboardPage() {
             <StatCard icon={<WalletIcon size={18} />} label="Total Bitcoin" value={`${overview.totalBitcoin.toFixed(8)} BTC`} />
             <StatCard icon={<Activity size={18} />} label="Available Bitcoin" value={`${overview.availableBitcoin.toFixed(8)} BTC`} />
             <StatCard icon={<Landmark size={18} />} label="Locked as Collateral" value={`${overview.collateralBitcoin.toFixed(8)} BTC`} />
-            <StatCard icon={<WalletIcon size={18} />} label="Current USD Value" value={formatUsd(overview.totalValueUsd)} />
-            <StatCard icon={<WalletIcon size={18} />} label="Total Cost Basis" value={formatFiat(overview.totalCostBasis)} />
-            <StatCard icon={<Activity size={18} />} label="Unrealized P&L" value={`${formatFiat(overview.unrealizedPnl)} (${formatPercent(overview.unrealizedPnlPercent)})`} color={overview.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'} />
+            <StatCard icon={<WalletIcon size={18} />} label={`Current Value (${currency})`} value={fmt(liveTotalValue)} />
+            <StatCard icon={<WalletIcon size={18} />} label="Total Cost Basis" value={fmt(overview.totalCostBasis)} />
+            <StatCard icon={<Activity size={18} />} label="Unrealized P&L" value={`${fmt(overview.unrealizedPnl)} (${formatPercent(overview.unrealizedPnlPercent)})`} color={overview.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'} />
           </div>
         </div>
       )}
@@ -107,9 +128,9 @@ export function DashboardPage() {
             {overview.activeLoanCount > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <StatCard icon={<Landmark size={18} />} label="Active loans" value={String(overview.activeLoanCount)} />
-                <StatCard icon={<Landmark size={18} />} label="Total loan balance" value={formatUsd(overview.outstandingLoanBalanceUsd)} />
+                <StatCard icon={<Landmark size={18} />} label="Total loan balance" value={fmt(overview.outstandingLoanBalanceUsd)} />
                 <StatCard icon={<Landmark size={18} />} label="Total collateral" value={`${overview.collateralBitcoin.toFixed(4)} BTC`} />
-                <StatCard icon={<Landmark size={18} />} label="Collateral value" value={formatUsd(overview.collateralBitcoin * overview.bitcoinPriceUsd)} />
+                <StatCard icon={<Landmark size={18} />} label="Collateral value" value={fmt(overview.collateralBitcoin * livePrice)} />
                 <StatCard icon={<Landmark size={18} />} label="Avg LTV" value={formatPercent(overview.weightedAverageLtv)} />
               </div>
             ) : (

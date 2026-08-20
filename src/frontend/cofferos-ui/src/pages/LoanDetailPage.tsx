@@ -5,7 +5,10 @@ import { api } from '../api/client';
 import type { LoanDetail, LoanHistoricalData } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { LoanHistoricalChart } from '../components/LoanHistoricalChart';
-import { formatDate, formatFiat, formatPercent, formatUsd } from '../lib/format';
+import { formatDate, formatPercent } from '../lib/format';
+import { formatForDisplay, SUPPORTED_CURRENCIES } from '../lib/currency';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
 
 const inputClass =
   'w-full rounded-lg border border-[var(--color-coffer-border)] bg-[var(--color-coffer-bg)] px-3 py-2 text-sm outline-none focus:border-[var(--color-coffer-orange)]';
@@ -19,6 +22,10 @@ export function LoanDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { settings } = useUserSettings();
+  const { exchangeRates } = useBitcoinPrice();
+  const displayCurrency = settings.currency;
+  const fmt = (value: number) => formatForDisplay(value, loan?.currency ?? 'USD', displayCurrency, exchangeRates);
 
   // Editable fields (using human-friendly values where appropriate)
   // These mirror the fields available during initial loan creation.
@@ -42,6 +49,7 @@ export function LoanDetailPage() {
     liquidationLtvPercent: 90,
     collateralCostBasis: 0,
     notes: '',
+    currency: 'USD',
   });
 
   async function load() {
@@ -69,6 +77,7 @@ export function LoanDetailPage() {
         liquidationLtvPercent: Math.round((d.liquidationLtv ?? 0.9) * 100 * 100) / 100,
         collateralCostBasis: d.collateralCostBasis ?? 0,
         notes: d.notes ?? '',
+        currency: d.currency ?? 'USD',
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load loan');
@@ -119,6 +128,7 @@ export function LoanDetailPage() {
         collateralCostBasis: form.collateralCostBasis || undefined,
         notes: form.notes || undefined,
         interestPaymentSchedule: form.interestPaymentSchedule,
+        currency: form.currency,
       };
       const updated = await api.updateLoan(id, payload);
       setLoan(updated);
@@ -152,7 +162,7 @@ export function LoanDetailPage() {
           <p className="mt-1 text-xs text-[var(--color-coffer-muted)]">Created {formatDate(loan.createdAt)}</p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold">{formatUsd(loan.currentBalance)}</div>
+          <div className="text-2xl font-bold">{fmt(loan.currentBalance)}</div>
           <div className="text-xs text-[var(--color-coffer-muted)]">Current balance</div>
         </div>
       </div>
@@ -177,7 +187,16 @@ export function LoanDetailPage() {
               <Field label="Lender">
                 <input className={inputClass} value={form.lender} onChange={(e) => setForm({ ...form, lender: e.target.value })} />
               </Field>
-              <Field label="Principal Amount (USD)">
+              <Field label="Currency">
+                <select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} — {c.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={`Principal Amount (${form.currency})`}>
                 <input type="number" className={inputClass} value={form.principalAmount} onChange={(e) => setForm({ ...form, principalAmount: parseFloat(e.target.value) || 0 })} />
               </Field>
               <Field label="Interest Rate (%)">
@@ -264,7 +283,7 @@ export function LoanDetailPage() {
               <Field label="Collateral (BTC)">
                 <input type="number" step="0.0001" className={inputClass} value={form.collateralAmountBtc} onChange={(e) => setForm({ ...form, collateralAmountBtc: parseFloat(e.target.value) || 0 })} />
               </Field>
-              <Field label="BTC Price (USD)">
+              <Field label={`BTC Price (${form.currency})`}>
                 <input type="number" className={inputClass} value={form.currentBtcPrice} onChange={(e) => setForm({ ...form, currentBtcPrice: parseFloat(e.target.value) || 0 })} />
               </Field>
               <Field label="Warning LTV (%)">
@@ -302,6 +321,7 @@ export function LoanDetailPage() {
                       liquidationLtvPercent: Math.round((loan.liquidationLtv ?? 0.9) * 100 * 100) / 100,
                       collateralCostBasis: loan.collateralCostBasis ?? 0,
                       notes: loan.notes ?? '',
+                      currency: loan.currency ?? 'USD',
                     });
                   }
                 }}>Cancel</Button>
@@ -309,8 +329,8 @@ export function LoanDetailPage() {
             </div>
           ) : (
             <div className="space-y-2 text-sm">
-              <Row label="Principal" value={formatUsd(loan.principalAmount)} />
-              <Row label="Current Balance" value={formatUsd(loan.currentBalance)} />
+              <Row label="Principal" value={fmt(loan.principalAmount)} />
+              <Row label="Current Balance" value={fmt(loan.currentBalance)} />
               <Row label="Interest Rate" value={`${(loan.interestRate * 100).toFixed(2)}% (${loan.interestType})`} />
               <Row label="Started" value={formatDate(loan.loanStartDate)} />
               {loan.loanTermMonths && <Row label="Term" value={`${loan.loanTermMonths} months`} />}
@@ -319,7 +339,7 @@ export function LoanDetailPage() {
               {loan.interestPaymentSchedule === 'InterestOnly' && (
                 <Row 
                   label="Monthly Interest Payment" 
-                  value={formatUsd((loan.principalAmount * loan.interestRate) / 12)} 
+                  value={fmt((loan.principalAmount * loan.interestRate) / 12)} 
                 />
               )}
               <Row label="Warning LTV" value={formatPercent(loan.warningLtv)} />
@@ -333,15 +353,15 @@ export function LoanDetailPage() {
           <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Collateral &amp; Risk</div>
           <div className="space-y-2 text-sm">
             <Row label="Collateral" value={`${loan.collateralAmountBtc.toFixed(4)} BTC`} />
-            <Row label="BTC Price" value={formatUsd(loan.currentBtcPrice)} />
-            <Row label="Collateral Cost Basis" value={formatFiat(loan.collateralCostBasis)} />
-            <Row label="Unrealized P&L" value={formatFiat(loan.currentCollateralValue - loan.collateralCostBasis)} />
-            <Row label="Collateral Value" value={formatUsd(loan.currentCollateralValue)} />
+            <Row label="BTC Price" value={fmt(loan.currentBtcPrice)} />
+            <Row label="Collateral Cost Basis" value={fmt(loan.collateralCostBasis)} />
+            <Row label="Unrealized P&L" value={fmt(loan.currentCollateralValue - loan.collateralCostBasis)} />
+            <Row label="Collateral Value" value={fmt(loan.currentCollateralValue)} />
             <Row label="Current LTV" value={<span className={ltvColor}>{formatPercent(loan.currentLtv)}</span>} />
             <Row label="Warning Threshold" value={formatPercent(loan.warningLtv)} />
             <Row label="Liquidation Threshold" value={formatPercent(loan.liquidationLtv)} />
-            <Row label="Warning Price" value={formatUsd(loan.warningPrice)} />
-            <Row label="Liquidation Price" value={formatUsd(loan.liquidationPrice)} />
+            <Row label="Warning Price" value={fmt(loan.warningPrice)} />
+            <Row label="Liquidation Price" value={fmt(loan.liquidationPrice)} />
             <Row label="Distance to Warning" value={formatPercent(loan.distanceToWarning)} />
             <Row label="Distance to Liquidation" value={formatPercent(loan.distanceToLiquidation)} />
             <Row label="Collateral Buffer" value={`${loan.remainingCollateralBuffer.toFixed(4)} BTC`} />
@@ -357,6 +377,9 @@ export function LoanDetailPage() {
             data={historicalData} 
             warningLtv={loan.warningLtv}
             liquidationLtv={loan.liquidationLtv}
+            currency={loan.currency}
+            displayCurrency={displayCurrency}
+            exchangeRates={exchangeRates}
           />
         </Card>
       )}

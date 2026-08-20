@@ -1,6 +1,8 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
+using CofferOS.Application.Abstractions.Settings;
+using CofferOS.Application.Contracts;
 using CofferOS.Application.Prices;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Events;
@@ -61,6 +63,19 @@ public class BitcoinPriceServiceTests
         }
     }
 
+    private sealed class FakeUserSettingsService : IUserSettingsService
+    {
+        public UserSettingsDto Settings { get; set; } = new("USD", true, true, null);
+
+        public Task<UserSettingsDto> GetAsync(CancellationToken ct = default) => Task.FromResult(Settings);
+
+        public Task<UserSettingsDto> UpdateAsync(UpdateUserSettingsRequest request, CancellationToken ct = default)
+        {
+            Settings = new UserSettingsDto(request.Currency, request.EnableLivePriceUpdates, request.EnablePriceHistory, request.MempoolExplorerUrl);
+            return Task.FromResult(Settings);
+        }
+    }
+
     private static BitcoinPriceOptions MakeOptions(bool enabled = true, bool privacy = false)
         => new BitcoinPriceOptions
         {
@@ -70,12 +85,19 @@ public class BitcoinPriceServiceTests
             Provider = "manual"
         };
 
+    private sealed class FakeExchangeRateProvider : IExchangeRateProvider
+    {
+        public IReadOnlyDictionary<string, decimal> GetCachedRates() =>
+            new Dictionary<string, decimal> { ["usd"] = 100_000m };
+    }
+
     private static BitcoinPriceService CreateService(
         IBitcoinPriceProvider currentProvider,
         IBitcoinPriceHistoryRepository? history = null,
         IDomainEventDispatcher? dispatcher = null,
         IMutableBitcoinPriceSource? mutable = null,
-        BitcoinPriceOptions? options = null)
+        BitcoinPriceOptions? options = null,
+        IUserSettingsService? userSettings = null)
     {
         var opts = options ?? MakeOptions();
         return new BitcoinPriceService(
@@ -84,6 +106,8 @@ public class BitcoinPriceServiceTests
             history ?? new FakeHistoryRepo(),
             dispatcher ?? new FakeDispatcher(),
             new TestOptionsMonitor<BitcoinPriceOptions>(opts),
+            userSettings ?? new FakeUserSettingsService(),
+            new FakeExchangeRateProvider(),
             NullLogger<BitcoinPriceService>.Instance);
     }
 

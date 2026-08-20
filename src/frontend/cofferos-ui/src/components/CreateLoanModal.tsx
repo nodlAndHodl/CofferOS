@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { api } from '../api/client';
-import type { WalletSummary } from '../types';
+import type { BitcoinPriceInfo, WalletSummary } from '../types';
 import { Button } from './ui';
+
+const SUPPORTED_CURRENCIES: string[] = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF', 'JPY'];
 
 interface Props {
   onClose: () => void;
@@ -27,20 +29,32 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
   const [liquidationLtvPercent, setLiquidationLtvPercent] = useState(90);
   const [notes, setNotes] = useState('');
   const [collateralCostBasis, setCollateralCostBasis] = useState(0);
+  const [currency, setCurrency] = useState('USD');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [priceInfo, setPriceInfo] = useState<BitcoinPriceInfo | null>(null);
 
   // Wallet relationship (optional)
   const [wallets, setWallets] = useState<WalletSummary[]>([]);
   const [collateralWalletLinked, setCollateralWalletLinked] = useState<'yes' | 'no' | null>(null);
   const [linkedWalletId, setLinkedWalletId] = useState<string>('');
 
+  function applyPrice(info: BitcoinPriceInfo | null, cur: string) {
+    if (!info) return;
+    const key = cur.toLowerCase();
+    const rate = info.exchangeRates[key];
+    if (rate != null && rate > 0) {
+      setCurrentBtcPrice(rate);
+    } else if (cur === 'USD' && info.priceUsd != null) {
+      setCurrentBtcPrice(info.priceUsd);
+    }
+  }
+
   useEffect(() => {
-    api.getBtcPrice()
+    api.getBitcoinPrice()
       .then((info) => {
-        if (info.providerId !== 'manual' && info.price != null) {
-          setCurrentBtcPrice(info.price);
-        }
+        setPriceInfo(info);
+        applyPrice(info, currency);
       })
       .catch(() => {
         // leave the default if the price service is unavailable
@@ -92,6 +106,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
         collateralCostBasis: collateralCostBasis || undefined,
         notes: notes.trim() || undefined,
         interestPaymentSchedule,
+        currency,
       });
       onCreated();
       onClose();
@@ -184,7 +199,18 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Principal Amount (USD)</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Loan Currency</label>
+            <select className={inputClass} value={currency} onChange={(e) => {
+              const cur = e.target.value;
+              setCurrency(cur);
+              applyPrice(priceInfo, cur);
+            }}>
+              {SUPPORTED_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Principal Amount ({currency})</label>
             <input type="number" className={inputClass} value={principalAmount} onChange={(e) => setPrincipalAmount(parseFloat(e.target.value) || 0)} />
           </div>
 
@@ -233,7 +259,7 @@ export function CreateLoanModal({ onClose, onCreated }: Props) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Current BTC Price (USD)</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Current BTC Price ({currency})</label>
             <input type="number" className={inputClass} value={currentBtcPrice} onChange={(e) => setCurrentBtcPrice(parseFloat(e.target.value) || 0)} />
           </div>
 

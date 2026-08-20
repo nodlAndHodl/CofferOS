@@ -2,11 +2,13 @@ using CofferOS.Application.CostBasis;
 using CofferOS.Application.Abstractions.Dashboard;
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Holdings;
+using CofferOS.Application.Abstractions.Settings;
 using CofferOS.Application.Abstractions.Treasury;
 using CofferOS.Application.Dashboard;
 using CofferOS.Application.Holdings;
 using CofferOS.Application.Prices;
 using CofferOS.Application.Retirement;
+using CofferOS.Application.Settings;
 using CofferOS.Application.Treasury;
 using CofferOS.Application.Wallets;
 using CofferOS.Application.Wallets.EventHandlers;
@@ -37,6 +39,9 @@ public static class DependencyInjection
         services.AddScoped<ILoanAnalyticsService, LoanAnalyticsService>();
         services.AddScoped<IDashboardQueryService, DashboardQueryService>();
 
+        // User settings
+        services.AddScoped<IUserSettingsService, UserSettingsService>();
+
         // Domain event handlers (each is resolved by the dispatcher as IDomainEventHandler<T>)
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, WalletImportedLoggingHandler>();
         services.AddScoped<IDomainEventHandler<WalletImportedEvent>, RescanOnWalletImportedHandler>();
@@ -46,6 +51,7 @@ public static class DependencyInjection
         // Bitcoin price engine event handlers
         services.AddScoped<IDomainEventHandler<PriceUpdatedEvent>, PriceUpdatedLoggingHandler>();
         services.AddScoped<IDomainEventHandler<PriceUpdatedEvent>, PriceUpdatedLoanHandler>();
+        services.AddScoped<IDomainEventHandler<PriceUpdatedEvent>, PriceUpdatedBroadcastHandler>();
 
         return services;
     }

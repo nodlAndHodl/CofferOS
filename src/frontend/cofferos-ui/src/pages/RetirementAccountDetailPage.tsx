@@ -4,7 +4,9 @@ import { Building2, Calendar, ChevronLeft, Plus, Trash2, X } from 'lucide-react'
 import { api } from '../api/client';
 import type { CostBasisEntryInput, RetirementAccount, RetirementAccountType } from '../types';
 import { Button, Card, Spinner } from '../components/ui';
-import { formatFiat } from '../lib/format';
+import { formatForDisplay, SUPPORTED_CURRENCIES } from '../lib/currency';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
 
 const ACCOUNT_TYPES: { value: RetirementAccountType; label: string }[] = [
   { value: 'TraditionalIra', label: 'Traditional IRA' },
@@ -24,10 +26,15 @@ export function RetirementAccountDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { settings } = useUserSettings();
+  const { exchangeRates } = useBitcoinPrice();
+  const displayCurrency = settings.currency;
+  const fmt = (value: number, valueCurrency: string) => formatForDisplay(value, valueCurrency, displayCurrency, exchangeRates);
 
   const [name, setName] = useState('');
   const [provider, setProvider] = useState('');
   const [bitcoinAmount, setBitcoinAmount] = useState('');
+  const [currency, setCurrency] = useState(settings.currency);
   const [notes, setNotes] = useState('');
 
   const [newCostBasis, setNewCostBasis] = useState('');
@@ -44,6 +51,7 @@ export function RetirementAccountDetailPage() {
       setName(data.name);
       setProvider(data.provider);
       setBitcoinAmount(data.bitcoinAmount.toString());
+      setCurrency(data.currency);
       setNotes(data.notes ?? '');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load retirement account');
@@ -73,6 +81,7 @@ export function RetirementAccountDetailPage() {
         name: name.trim(),
         provider: provider.trim(),
         bitcoinAmount: btcAmount,
+        currency,
         notes: notes.trim() || undefined,
       });
       await load();
@@ -175,8 +184,8 @@ export function RetirementAccountDetailPage() {
             <div className="font-bold">{account.bitcoinAmount.toFixed(8)} BTC</div>
           </div>
           <div>
-            <div className="text-[var(--color-coffer-muted)]">Total Cost Basis</div>
-            <div className="font-bold">{formatFiat(account.totalCostBasis)}</div>
+            <div className="text-[var(--color-coffer-muted)]">Total Cost Basis ({displayCurrency})</div>
+            <div className="font-bold">{fmt(account.totalCostBasis, account.currency)}</div>
           </div>
           <div>
             <div className="text-[var(--color-coffer-muted)]">Created</div>
@@ -208,6 +217,16 @@ export function RetirementAccountDetailPage() {
             />
           </div>
           <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Account Currency</label>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={inputClass}>
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Notes</label>
             <textarea
               value={notes}
@@ -235,7 +254,7 @@ export function RetirementAccountDetailPage() {
           {account.costBasisEntries.map((entry) => (
             <div key={entry.id} className="flex items-center justify-between rounded-lg border border-[var(--color-coffer-border)] p-3">
               <div>
-                <div className="font-semibold">{formatFiat(entry.costBasis)}</div>
+                <div className="font-semibold">{fmt(entry.costBasis, account.currency)}</div>
                 <div className="text-xs text-[var(--color-coffer-muted)]">
                   {new Date(entry.acquisitionDate).toLocaleDateString()}
                 </div>
@@ -255,7 +274,7 @@ export function RetirementAccountDetailPage() {
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Cost Basis (USD)</label>
+              <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Cost Basis ({account.currency})</label>
               <input
                 type="number"
                 step="0.01"

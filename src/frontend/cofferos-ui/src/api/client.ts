@@ -29,6 +29,8 @@ import type {
   WalletDetail,
   WalletSummary,
   WalletTimeline,
+  UserSettings,
+  BitcoinPriceInfo,
 } from '../types';
 
 const BASE = import.meta.env.VITE_API_BASE ?? '/api';
@@ -150,4 +152,9 @@ export const api = {
     }),
   removeCostBasisEntry: (id: string, entryId: string) =>
     request<RetirementAccount>(`/retirement-accounts/${id}/cost-basis/${entryId}`, { method: 'DELETE' }),
+
+  getUserSettings: () => request<UserSettings>('/settings/'),
+  updateUserSettings: (payload: UserSettings) =>
+    request<UserSettings>('/settings/', { method: 'PUT', body: JSON.stringify(payload) }),
+  getBitcoinPrice: () => request<BitcoinPriceInfo>('/settings/bitcoin-price'),
 };

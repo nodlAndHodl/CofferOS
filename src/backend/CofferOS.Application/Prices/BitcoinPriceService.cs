@@ -1,6 +1,7 @@
 using CofferOS.Application.Abstractions.Events;
 using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
+using CofferOS.Application.Abstractions.Settings;
 using CofferOS.Domain.Events;
 using CofferOS.Domain.Prices;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,8 @@ public sealed class BitcoinPriceService
     private readonly IBitcoinPriceHistoryRepository _history;
     private readonly IDomainEventDispatcher _dispatcher;
     private readonly IOptionsMonitor<BitcoinPriceOptions> _options;
+    private readonly IUserSettingsService _userSettings;
+    private readonly IExchangeRateProvider _exchangeRates;
     private readonly ILogger<BitcoinPriceService> _logger;
 
     // Deduplication: track the last refresh time to avoid concurrent duplicate calls
@@ -31,6 +34,8 @@ public sealed class BitcoinPriceService
         IBitcoinPriceHistoryRepository history,
         IDomainEventDispatcher dispatcher,
         IOptionsMonitor<BitcoinPriceOptions> options,
+        IUserSettingsService userSettings,
+        IExchangeRateProvider exchangeRates,
         ILogger<BitcoinPriceService> logger)
     {
         _currentProvider = currentProvider;
@@ -38,6 +43,8 @@ public sealed class BitcoinPriceService
         _history = history;
         _dispatcher = dispatcher;
         _options = options;
+        _userSettings = userSettings;
+        _exchangeRates = exchangeRates;
         _logger = logger;
     }
 
@@ -86,9 +93,13 @@ public sealed class BitcoinPriceService
 
         var now = DateTimeOffset.UtcNow;
 
-        // Persist history
-        var entry = new BitcoinPriceHistory(now, price.Value, _currentProvider.ProviderId);
-        await _history.AddAsync(entry, ct);
+        // Persist history only if user has enabled price history tracking
+        var userSettings = await _userSettings.GetAsync(ct);
+        if (userSettings.EnablePriceHistory)
+        {
+            var entry = new BitcoinPriceHistory(now, price.Value, _currentProvider.ProviderId);
+            await _history.AddAsync(entry, ct);
+        }
 
         // Push into the current holder so IBitcoinPriceProvider returns it
         if (_mutable is not null)
@@ -100,8 +111,9 @@ public sealed class BitcoinPriceService
             m.SetPrice(price.Value);
         }
 
-        // Publish event
-        await _dispatcher.DispatchAsync(new[] { new PriceUpdatedEvent(price.Value, _currentProvider.ProviderId, now) }, ct);
+        // Publish event — include exchange rates so per-currency loan prices can be updated
+        var rates = _exchangeRates.GetCachedRates();
+        await _dispatcher.DispatchAsync(new[] { new PriceUpdatedEvent(price.Value, _currentProvider.ProviderId, now, rates) }, ct);
 
         _logger.LogInformation("Bitcoin price updated: {Price} via {Provider}", price, _currentProvider.ProviderId);
 

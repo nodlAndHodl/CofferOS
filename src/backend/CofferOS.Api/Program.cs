@@ -79,6 +79,7 @@ app.MapTreasuryEndpoints();
 app.MapHoldingsEndpoints();
 app.MapRetirementAccountEndpoints();
 app.MapCostBasisEndpoints();
+app.MapSettingsEndpoints();
 app.MapWebSocketEndpoints();
 
 app.Run();

@@ -37,10 +37,13 @@ public sealed class PriceUpdatedLoanHandler : IDomainEventHandler<PriceUpdatedEv
         var updateCount = 0;
         foreach (var loan in activeLoans)
         {
-            // Only update if price has changed to avoid unnecessary updates
-            if (Math.Abs(loan.CurrentBtcPrice - domainEvent.PriceUsd) > 0.01m)
+            // Resolve BTC price in the loan's denomination currency.
+            // ExchangeRates values are direct BTC prices per currency from CoinGecko (not conversion factors).
+            var priceInLoanCurrency = ResolvePriceForLoan(domainEvent, loan.Currency);
+
+            if (Math.Abs(loan.CurrentBtcPrice - priceInLoanCurrency) > 0.01m)
             {
-                loan.UpdatePrice(domainEvent.PriceUsd);
+                loan.UpdatePrice(priceInLoanCurrency);
                 updateCount++;
             }
         }
@@ -49,8 +52,22 @@ public sealed class PriceUpdatedLoanHandler : IDomainEventHandler<PriceUpdatedEv
         {
             await _uow.SaveChangesAsync(cancellationToken);
             _logger.LogInformation(
-                "Updated BTC price to {Price} USD for {Count} active loans via {Provider}",
-                domainEvent.PriceUsd, updateCount, domainEvent.Provider);
+                "Updated BTC price for {Count} active loans via {Provider} (base USD: {Price})",
+                updateCount, domainEvent.Provider, domainEvent.PriceUsd);
         }
+    }
+
+    private static decimal ResolvePriceForLoan(PriceUpdatedEvent evt, string loanCurrency)
+    {
+        if (string.IsNullOrEmpty(loanCurrency) || loanCurrency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+            return evt.PriceUsd;
+
+        if (evt.ExchangeRates is not null &&
+            evt.ExchangeRates.TryGetValue(loanCurrency.ToLowerInvariant(), out var price) &&
+            price > 0)
+            return price;
+
+        // Exchange rates not available (e.g. manual price provider) — fall back to USD
+        return evt.PriceUsd;
     }
 }

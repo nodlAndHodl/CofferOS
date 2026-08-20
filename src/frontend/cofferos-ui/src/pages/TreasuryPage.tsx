@@ -5,6 +5,9 @@ import { api } from '../api/client';
 import type { LoanSummary, TreasurySummary } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { formatPercent, formatUsd } from '../lib/format';
+import { formatForDisplay } from '../lib/currency';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
 import { CreateLoanModal } from '../components/CreateLoanModal';
 
 export function TreasuryPage() {
@@ -13,6 +16,11 @@ export function TreasuryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+
+  const { settings } = useUserSettings();
+  const { exchangeRates } = useBitcoinPrice();
+  const displayCurrency = settings.currency;
+  const fmt = (value: number, valueCurrency: string) => formatForDisplay(value, valueCurrency, displayCurrency, exchangeRates);
 
   async function load() {
     setLoading(true);
@@ -79,7 +87,7 @@ export function TreasuryPage() {
               <div>
                 <div className="font-semibold">{summary.highestRiskLoan.name}</div>
                 <div className="text-xs text-[var(--color-coffer-muted)]">
-                  Balance {formatUsd(summary.highestRiskLoan.currentBalance)} · LTV {formatPercent(summary.highestRiskLoan.currentLtv)}
+                  Balance {fmt(summary.highestRiskLoan.currentBalance, summary.highestRiskLoan.currency ?? 'USD')} · LTV {formatPercent(summary.highestRiskLoan.currentLtv)}
                 </div>
               </div>
               <Link to={`/treasury/${summary.highestRiskLoan.id}`}>
@@ -121,10 +129,10 @@ export function TreasuryPage() {
                     </button>
                   </div>
                 </div>
-                <div className="text-xl font-bold">{formatUsd(l.currentBalance)}</div>
+                <div className="text-xl font-bold">{fmt(l.currentBalance, l.currency ?? 'USD')}</div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-[var(--color-coffer-muted)]">
                   <div>Collateral: {(l.collateralAmountBtc).toFixed(4)} BTC</div>
-                  <div>Value: {formatUsd(l.currentCollateralValue)}</div>
+                  <div>Value: {fmt(l.currentCollateralValue, l.currency ?? 'USD')}</div>
                   <div>LTV: <span className={l.currentLtv >= l.liquidationLtv ? 'text-red-400' : l.currentLtv >= l.warningLtv ? 'text-yellow-400' : ''}>{formatPercent(l.currentLtv)}</span></div>
                   <div>Buffer: {formatPercent(Math.max(0, l.distanceToWarning))}</div>
                 </div>

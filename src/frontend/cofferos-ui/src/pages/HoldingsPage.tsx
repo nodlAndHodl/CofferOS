@@ -4,8 +4,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Holding, HoldingsSummary } from '../types';
 import { Button, Card, Spinner } from '../components/ui';
-import { formatFiat, formatPercent } from '../lib/format';
+import { formatPercent } from '../lib/format';
 import { AddHoldingWizard } from '../components/AddHoldingWizard';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
+import { formatForDisplay } from '../lib/currency';
 
 export function HoldingsPage() {
   const [summary, setSummary] = useState<HoldingsSummary | null>(null);
@@ -13,6 +16,12 @@ export function HoldingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddHolding, setShowAddHolding] = useState(false);
+
+  const { settings } = useUserSettings();
+  const { priceUsd, exchangeRates, isLive } = useBitcoinPrice();
+  const currency = settings.currency;
+  const fmt = (usd: number) => formatForDisplay(usd, 'USD', currency, exchangeRates);
+  const livePrice = priceUsd ?? 0;
 
   async function load() {
     setLoading(true);
@@ -36,16 +45,25 @@ export function HoldingsPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">My Bitcoin Holdings</h1>
           <p className="text-sm text-[var(--color-coffer-muted)]">All Bitcoin ownership in one place</p>
         </div>
-        <Button onClick={() => setShowAddHolding(true)}>
-          <span className="flex items-center gap-2">
-            <Plus size={16} /> Add Holding
-          </span>
-        </Button>
+        <div className="flex items-center gap-3">
+          {livePrice > 0 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-[var(--color-coffer-border)] px-3 py-1.5 text-sm">
+              <span className={`h-2 w-2 rounded-full ${isLive ? 'animate-pulse bg-green-400' : 'bg-[var(--color-coffer-muted)]'}`} />
+              <span className="font-mono font-semibold">{fmt(livePrice)}</span>
+              <span className="text-xs text-[var(--color-coffer-muted)]">BTC/{currency}{isLive ? ' · LIVE' : ''}</span>
+            </div>
+          )}
+          <Button onClick={() => setShowAddHolding(true)}>
+            <span className="flex items-center gap-2">
+              <Plus size={16} /> Add Holding
+            </span>
+          </Button>
+        </div>
       </div>
 
       {error && <div className="mb-6 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
@@ -54,12 +72,12 @@ export function HoldingsPage() {
       <Card className="mb-8 p-6">
         <div className="text-sm text-[var(--color-coffer-muted)] mb-1">Total Holdings</div>
         <div className="text-3xl font-bold">{summary?.totalBitcoin.toFixed(8) ?? '0.00000000'} BTC</div>
-        {summary && summary.totalValue > 0 && (
+        {summary && (livePrice > 0 || summary.totalValue > 0) && (
           <div className="grid gap-1 mt-1 text-sm text-[var(--color-coffer-muted)] sm:grid-cols-3">
-            <div>Value {formatFiat(summary.totalValue)}</div>
-            <div>Cost Basis {formatFiat(summary.totalCostBasis)}</div>
+            <div>Value {fmt(livePrice > 0 ? summary.totalBitcoin * livePrice : summary.totalValue)}</div>
+            <div>Cost Basis {fmt(summary.totalCostBasis)}</div>
             <div className={summary.unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
-              P&L {formatFiat(summary.unrealizedPnl)} ({formatPercent(summary.unrealizedPnlPercent)})
+              P&L {fmt(summary.unrealizedPnl)} ({formatPercent(summary.unrealizedPnlPercent)})
             </div>
           </div>
         )}
@@ -77,6 +95,7 @@ export function HoldingsPage() {
           costBasis={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.costBasis}
           unrealizedPnl={summary?.breakdown.find(b => b.category === 'Wallet Holdings')?.unrealizedPnl}
           linkTo="/wallets"
+          formatValue={fmt}
         />
 
         {/* Collateral */}
@@ -89,6 +108,7 @@ export function HoldingsPage() {
           costBasis={summary?.breakdown.find(b => b.category === 'Collateral')?.costBasis}
           unrealizedPnl={summary?.breakdown.find(b => b.category === 'Collateral')?.unrealizedPnl}
           linkTo="/treasury"
+          formatValue={fmt}
         />
 
         {/* Lightning - Coming Soon */}
@@ -110,6 +130,7 @@ export function HoldingsPage() {
           costBasis={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.costBasis}
           unrealizedPnl={summary?.breakdown.find(b => b.category === 'Retirement Accounts')?.unrealizedPnl}
           linkTo="/holdings/retirement"
+          formatValue={fmt}
         />
 
         {/* ETF Holdings - Coming Soon */}
@@ -174,7 +195,7 @@ export function HoldingsPage() {
                       <div className="text-right">
                         <div className="font-bold">{h.bitcoinAmount.toFixed(8)} BTC</div>
                         {h.value > 0 && (
-                          <div className="text-xs text-[var(--color-coffer-muted)]">{formatFiat(h.value)}</div>
+                          <div className="text-xs text-[var(--color-coffer-muted)]">{fmt(h.value)}</div>
                         )}
                       </div>
                     </div>
@@ -209,6 +230,7 @@ function HoldingCategoryCard({
   unrealizedPnl,
   linkTo,
   comingSoon,
+  formatValue,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -219,6 +241,7 @@ function HoldingCategoryCard({
   unrealizedPnl?: number;
   linkTo?: string;
   comingSoon?: boolean;
+  formatValue?: (usd: number) => string;
 }) {
   const content = (
     <Card className={`p-4 ${comingSoon ? 'opacity-50' : 'transition hover:border-[var(--color-coffer-orange)]/50'}`}>
@@ -234,12 +257,12 @@ function HoldingCategoryCard({
       <div className="text-xl font-bold">
         {comingSoon ? '—' : `${btcAmount.toFixed(8)} BTC`}
       </div>
-      {valueUsd != null && valueUsd > 0 && !comingSoon && (
+      {valueUsd != null && valueUsd > 0 && !comingSoon && formatValue && (
         <div className="grid gap-1 text-xs sm:grid-cols-2">
-          <span className="text-[var(--color-coffer-muted)]">{formatFiat(valueUsd)} value</span>
-          <span className="text-[var(--color-coffer-muted)]">{formatFiat(costBasis ?? 0)} basis</span>
+          <span className="text-[var(--color-coffer-muted)]">{formatValue(valueUsd)} value</span>
+          <span className="text-[var(--color-coffer-muted)]">{formatValue(costBasis ?? 0)} basis</span>
           <span className={unrealizedPnl && unrealizedPnl >= 0 ? 'text-green-400' : 'text-red-400'}>
-            {unrealizedPnl !== undefined ? formatFiat(unrealizedPnl) : '—'} P&L
+            {unrealizedPnl !== undefined ? formatValue(unrealizedPnl) : '—'} P&L
           </span>
         </div>
       )}

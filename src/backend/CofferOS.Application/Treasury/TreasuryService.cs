@@ -5,6 +5,7 @@ using CofferOS.Application.CostBasis;
 using CofferOS.Application.Prices;
 using CofferOS.Domain.Common;
 using CofferOS.Domain.Treasury;
+using Microsoft.Extensions.Logging;
 
 namespace CofferOS.Application.Treasury;
 
@@ -19,9 +20,11 @@ public sealed class TreasuryService
     private readonly ILoanPriceSnapshotRepository _priceSnapshots;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBitcoinPriceProvider _priceProvider;
+    private readonly IExchangeRateProvider _exchangeRates;
     private readonly ILoanAccrualService _accrual;
-    private readonly CoinbaseHistoricalPriceService _historicalPriceService;
+    private readonly CoinGeckoHistoricalPriceService _historicalPriceService;
     private readonly CostBasisService _costBasis;
+    private readonly ILogger<TreasuryService> _logger;
 
     public TreasuryService(
         ILoanRepository loans,
@@ -29,18 +32,22 @@ public sealed class TreasuryService
         ILoanPriceSnapshotRepository priceSnapshots,
         IUnitOfWork unitOfWork,
         IBitcoinPriceProvider priceProvider,
+        IExchangeRateProvider exchangeRates,
         ILoanAccrualService accrual,
-        CoinbaseHistoricalPriceService historicalPriceService,
-        CostBasisService costBasis)
+        CoinGeckoHistoricalPriceService historicalPriceService,
+        CostBasisService costBasis,
+        ILogger<TreasuryService> logger)
     {
         _loans = loans;
         _payments = payments;
         _priceSnapshots = priceSnapshots;
         _unitOfWork = unitOfWork;
         _priceProvider = priceProvider;
+        _exchangeRates = exchangeRates;
         _accrual = accrual;
         _historicalPriceService = historicalPriceService;
         _costBasis = costBasis;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<LoanSummaryDto>> GetSummariesAsync(CancellationToken cancellationToken = default)
@@ -111,7 +118,8 @@ public sealed class TreasuryService
             request.WarningLtv,
             request.LiquidationLtv,
             request.Notes,
-            interestPaymentSchedule);
+            interestPaymentSchedule,
+            request.Currency);
 
         if (isBalanceOverridden)
         {
@@ -196,7 +204,8 @@ public sealed class TreasuryService
             request.WarningLtv,
             request.LiquidationLtv,
             request.Notes,
-            interestPaymentSchedule);
+            interestPaymentSchedule,
+            request.Currency);
 
         if (shouldRecalculateBalance)
         {
@@ -329,6 +338,7 @@ public sealed class TreasuryService
             distWarn,
             distLiq,
             await _costBasis.GetByReferenceAsync(CostBasisTarget.LoanCollateral, loan.Id.ToString(), cancellationToken),
+            loan.Currency,
             loan.CreatedAt,
             loan.UpdatedAt);
     }
@@ -370,6 +380,7 @@ public sealed class TreasuryService
             distLiq,
             buffer,
             await _costBasis.GetByReferenceAsync(CostBasisTarget.LoanCollateral, loan.Id.ToString(), cancellationToken),
+            loan.Currency,
             loan.CreatedAt,
             loan.UpdatedAt);
     }
@@ -403,17 +414,32 @@ public sealed class TreasuryService
         if (loan is null)
             throw new ArgumentException("Loan not found.", nameof(loanId));
 
+        var loanCurrency = string.IsNullOrWhiteSpace(loan.Currency) ? "USD" : loan.Currency;
+
         var payments = await _payments.GetByLoanAsync(loanId, cancellationToken);
 
         var endDate = DateTimeOffset.UtcNow;
         var startDate = loan.LoanStartDate;
 
-        // Ensure we have snapshots for every day in the requested range so the graph updates when dates change.
+        // Ensure we have snapshots for every day in the requested range in the loan's currency.
+        // If the stored snapshots are for a different currency (e.g. the loan's currency changed),
+        // delete them and re-fetch the full history in the correct currency.
         var allSnapshots = await _priceSnapshots.GetByLoanAsync(loanId, cancellationToken);
-        var existingDates = allSnapshots.Select(s => s.SnapshotDate.Date).ToHashSet();
-
         var requestedEnd = endDate.Date;
         var requestedStart = startDate.Date;
+
+        if (allSnapshots.Count > 0 && allSnapshots.Any(s => !s.Currency.Equals(loanCurrency, StringComparison.OrdinalIgnoreCase)))
+        {
+            var mismatch = allSnapshots.First(s => !s.Currency.Equals(loanCurrency, StringComparison.OrdinalIgnoreCase)).Currency;
+            _logger.LogWarning("Loan {LoanId} currency changed from {OldCurrency} to {NewCurrency}; removing {Count} outdated snapshots and re-fetching",
+                loanId, mismatch, loanCurrency, allSnapshots.Count);
+            foreach (var s in allSnapshots)
+                _priceSnapshots.Remove(s);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            allSnapshots = [];
+        }
+
+        var existingDates = allSnapshots.Select(s => s.SnapshotDate.Date).ToHashSet();
         var requiredDates = Enumerable.Range(0, (requestedEnd - requestedStart).Days + 1)
             .Select(d => requestedStart.AddDays(d))
             .ToList();
@@ -425,7 +451,12 @@ public sealed class TreasuryService
             var fetchStart = missingDates.Min();
             var fetchEnd = missingDates.Max();
 
-            var prices = await _historicalPriceService.GetDailyPricesAsync(fetchStart, fetchEnd, cancellationToken);
+            _logger.LogInformation("Fetching historical BTC-{Currency} prices for loan {LoanId} from {Start:s} to {End:s} ({MissingCount} missing dates)",
+                loanCurrency, loanId, fetchStart, fetchEnd, missingDates.Count);
+
+            var prices = await _historicalPriceService.GetDailyPricesAsync(fetchStart, fetchEnd, loanCurrency, cancellationToken);
+            _logger.LogInformation("CoinGecko returned {Count} daily BTC-{Currency} prices for loan {LoanId}", prices.Count, loanCurrency, loanId);
+
             if (prices.Count > 0)
             {
                 var newSnapshots = new List<LoanPriceSnapshot>();
@@ -433,7 +464,7 @@ public sealed class TreasuryService
                 {
                     if (missingDates.Contains(date.Date))
                     {
-                        newSnapshots.Add(new LoanPriceSnapshot(loanId, date, price, "coinbase"));
+                        newSnapshots.Add(new LoanPriceSnapshot(loanId, date, price, loanCurrency, "coingecko"));
                     }
                 }
 
@@ -441,6 +472,7 @@ public sealed class TreasuryService
                 {
                     await _priceSnapshots.AddRangeAsync(newSnapshots, cancellationToken);
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Saved {Count} BTC-{Currency} price snapshots for loan {LoanId}", newSnapshots.Count, loanCurrency, loanId);
 
                     allSnapshots = allSnapshots.Concat(newSnapshots).ToList();
                 }
@@ -453,25 +485,26 @@ public sealed class TreasuryService
             .OrderBy(s => s.SnapshotDate)
             .ToList();
 
-        // Build response DTOs with calculated LTV using historical balance at each snapshot date
+        // Build response DTOs with calculated LTV using historical balance at each snapshot date.
+        // Snapshots are now stored directly in the loan's currency, so PriceUsd is the BTC price in that currency.
         var snapshotDtos = new List<LoanPriceSnapshotDto>();
         foreach (var snapshot in snapshotsInRange)
         {
             // Reconstruct the loan's balance as of this snapshot date
             var historicalBalance = CalculateHistoricalBalance(loan, payments, snapshot.SnapshotDate);
-            
-            var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, snapshot.PriceUsd);
+            var btcPriceInLoanCurrency = snapshot.PriceUsd;
+            var collateralValue = LoanCalculator.CalculateCollateralValue(loan.CollateralAmountBtc, btcPriceInLoanCurrency);
             var ltv = LoanCalculator.CalculateCurrentLtv(historicalBalance, collateralValue);
 
             snapshotDtos.Add(new LoanPriceSnapshotDto(
                 snapshot.SnapshotDate,
-                snapshot.PriceUsd,
+                btcPriceInLoanCurrency,
                 historicalBalance,
                 collateralValue,
                 ltv));
         }
 
-        return new LoanHistoricalDataDto(loanId, startDate, endDate, snapshotDtos);
+        return new LoanHistoricalDataDto(loanId, loan.Currency, startDate, endDate, snapshotDtos);
     }
 
     /// <summary>

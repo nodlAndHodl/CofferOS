@@ -1,14 +1,29 @@
 import { useMemo, useState } from 'react';
 import type { LoanHistoricalData } from '../types';
 import { Spinner } from './ui';
+import { convertCurrency } from '../lib/currency';
 
 interface Props {
   data: LoanHistoricalData;
   warningLtv: number;
   liquidationLtv: number;
+  currency?: string;
+  displayCurrency?: string;
+  exchangeRates?: Record<string, number>;
 }
 
-export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props) {
+export function LoanHistoricalChart({ data, warningLtv, liquidationLtv, currency, displayCurrency, exchangeRates }: Props) {
+  const rates = exchangeRates ?? {};
+  const supported = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'CHF', 'JPY'];
+  const raw = (currency ?? data.currency ?? 'USD').toUpperCase();
+  const loanCurrency = supported.includes(raw) ? raw : 'USD';
+  const targetRaw = (displayCurrency ?? loanCurrency).toUpperCase();
+  const targetCurrency = supported.includes(targetRaw) ? targetRaw : loanCurrency;
+  const currencySymbol = targetCurrency === 'JPY' ? '¥' :
+    targetCurrency === 'EUR' ? '€' : targetCurrency === 'GBP' ? '£' :
+    targetCurrency === 'CAD' ? 'C$' : targetCurrency === 'AUD' ? 'A$' :
+    targetCurrency === 'CHF' ? 'Fr' : '$';
+  const convert = (v: number) => convertCurrency(v, loanCurrency, targetCurrency, rates);
   const [hover, setHover] = useState<{ x: number; y: number; snapshotIndex: number } | null>(null);
   const [activeSeries, setActiveSeries] = useState<'ltv' | 'price'>('ltv');
 
@@ -27,7 +42,7 @@ export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props)
     const maxDate = Math.max(...dates);
     const dateRange = maxDate - minDate || 1;
 
-    const prices = snapshots.map((s) => s.priceUsd);
+    const prices = snapshots.map((s) => convert(s.priceUsd));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice || 1;
@@ -49,7 +64,7 @@ export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props)
       .join(' ');
 
     const pricePath = snapshots
-      .map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${yPrice(s.priceUsd)}`)
+      .map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${yPrice(convert(s.priceUsd))}`)
       .join(' ');
 
     const warningY = yLtv(warningLtv * 100);
@@ -74,7 +89,7 @@ export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props)
     const priceStep = priceRange / (priceTicks - 1);
     const priceLabels = Array.from({ length: priceTicks }, (_, i) => ({
       y: yPrice(minPrice + priceStep * i),
-      label: `$${Math.round(minPrice + priceStep * i).toLocaleString()}`,
+      label: `${currencySymbol}${Math.round(minPrice + priceStep * i).toLocaleString()}`,
     }));
 
     return {
@@ -97,7 +112,7 @@ export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props)
       minPrice,
       maxPrice,
     };
-  }, [data, warningLtv, liquidationLtv]);
+  }, [data, warningLtv, liquidationLtv, loanCurrency, targetCurrency, rates]);
 
   if (!chart) {
     return <Spinner />;
@@ -310,8 +325,8 @@ export function LoanHistoricalChart({ data, warningLtv, liquidationLtv }: Props)
               {new Date(hoveredSnapshot.snapshotDate).toLocaleDateString('en-US')}
             </div>
             <div className="text-orange-400">LTV: {(hoveredSnapshot.ltv * 100).toFixed(2)}%</div>
-            <div className="text-blue-400">Price: ${hoveredSnapshot.priceUsd.toLocaleString()}</div>
-            <div className="text-emerald-400">Value: ${hoveredSnapshot.collateralValue.toLocaleString()}</div>
+            <div className="text-blue-400">Price: {currencySymbol}{Math.round(convert(hoveredSnapshot.priceUsd)).toLocaleString()}</div>
+            <div className="text-emerald-400">Value: {currencySymbol}{Math.round(convert(hoveredSnapshot.collateralValue)).toLocaleString()}</div>
           </div>
         )}
       </div>

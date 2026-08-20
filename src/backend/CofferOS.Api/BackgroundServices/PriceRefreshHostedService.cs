@@ -1,3 +1,4 @@
+using CofferOS.Application.Abstractions.Settings;
 using CofferOS.Application.Prices;
 using Microsoft.Extensions.Options;
 
@@ -30,6 +31,10 @@ public sealed class PriceRefreshHostedService : BackgroundService
                 await using var scope = _services.CreateAsyncScope();
                 var opts = scope.ServiceProvider.GetRequiredService<IOptionsMonitor<BitcoinPriceOptions>>().CurrentValue;
 
+                var userSettings = await scope.ServiceProvider
+                    .GetRequiredService<IUserSettingsService>()
+                    .GetAsync(stoppingToken);
+
                 if (!opts.Enabled)
                 {
                     _logger.LogDebug("Bitcoin price auto-refresh is disabled.");
@@ -37,6 +42,10 @@ public sealed class PriceRefreshHostedService : BackgroundService
                 else if (opts.PrivacyMode)
                 {
                     _logger.LogDebug("Privacy Mode enabled; skipping price refresh.");
+                }
+                else if (!userSettings.EnableLivePriceUpdates)
+                {
+                    _logger.LogDebug("Live price updates disabled by user settings; skipping refresh.");
                 }
                 else
                 {

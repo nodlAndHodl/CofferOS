@@ -260,6 +260,7 @@ export interface CreateLoanRequest {
   collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
+  currency?: string;
 }
 
 export interface UpdateLoanRequest {
@@ -279,6 +280,7 @@ export interface UpdateLoanRequest {
   collateralCostBasis?: number;
   notes?: string;
   interestPaymentSchedule?: string;
+  currency?: string;
 }
 
 export interface LoanSummary {
@@ -299,6 +301,7 @@ export interface LoanSummary {
   distanceToWarning: number;
   distanceToLiquidation: number;
   collateralCostBasis: number;
+  currency: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -329,6 +332,7 @@ export interface LoanDetail {
   distanceToLiquidation: number;
   remainingCollateralBuffer: number;
   collateralCostBasis: number;
+  currency: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -362,6 +366,7 @@ export interface LoanPriceSnapshot {
 
 export interface LoanHistoricalData {
   loanId: string;
+  currency: string;
   startDate: string;
   endDate: string;
   snapshots: LoanPriceSnapshot[];
@@ -459,6 +464,7 @@ export interface RetirementAccount {
   accountType: RetirementAccountType;
   provider: string;
   bitcoinAmount: number;
+  currency: string;
   notes?: string | null;
   totalCostBasis: number;
   costBasisEntries: RetirementAccountCostBasis[];
@@ -471,6 +477,7 @@ export interface CreateRetirementAccountRequest {
   accountType: RetirementAccountType;
   provider: string;
   bitcoinAmount: number;
+  currency?: string;
   notes?: string;
   costBasisEntries?: Array<{
     costBasis: number;
@@ -482,6 +489,7 @@ export interface UpdateRetirementAccountRequest {
   name: string;
   provider: string;
   bitcoinAmount: number;
+  currency?: string;
   notes?: string;
 }
 
@@ -489,3 +497,18 @@ export interface CostBasisEntryInput {
   costBasis: number;
   acquisitionDate: string;
 }
+
+export interface UserSettings {
+  currency: string;
+  enableLivePriceUpdates: boolean;
+  enablePriceHistory: boolean;
+  mempoolExplorerUrl?: string | null;
+}
+
+export interface BitcoinPriceInfo {
+  priceUsd: number | null;
+  exchangeRates: Record<string, number>;
+  currency: string;
+}
+
+export type SupportedCurrency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'CHF' | 'JPY';
