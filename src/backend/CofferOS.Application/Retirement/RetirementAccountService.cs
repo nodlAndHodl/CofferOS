@@ -30,6 +30,7 @@ public sealed class RetirementAccountService
             request.AccountType,
             request.Provider,
             request.BitcoinAmount,
+            request.Currency,
             request.Notes);
 
         foreach (var entry in request.CostBasisEntries)
@@ -68,6 +69,7 @@ public sealed class RetirementAccountService
             request.Name,
             request.Provider,
             request.BitcoinAmount,
+            request.Currency,
             request.Notes);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -122,6 +124,7 @@ public sealed class RetirementAccountService
             AccountType = account.AccountType,
             Provider = account.Provider,
             BitcoinAmount = account.BitcoinAmount,
+            Currency = account.Currency,
             Notes = account.Notes,
             TotalCostBasis = account.GetTotalCostBasis(),
             CostBasisEntries = account.CostBasisEntries

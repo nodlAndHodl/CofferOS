@@ -25,7 +25,8 @@ public sealed class Loan : Entity
         decimal warningLtv,
         decimal liquidationLtv,
         string? notes,
-        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing,
+        string currency = "USD")
     {
         Name = name;
         Lender = lender;
@@ -43,6 +44,7 @@ public sealed class Loan : Entity
         WarningLtv = warningLtv;
         LiquidationLtv = liquidationLtv;
         Notes = notes;
+        Currency = string.IsNullOrWhiteSpace(currency) ? "USD" : currency.Trim().ToUpperInvariant();
         CreatedAt = DateTimeOffset.UtcNow;
         UpdatedAt = CreatedAt;
 
@@ -77,7 +79,14 @@ public sealed class Loan : Entity
 
     // Collateral
     public decimal CollateralAmountBtc { get; private set; }
+    /// <summary>BTC price expressed in the loan's denomination currency.</summary>
     public decimal CurrentBtcPrice { get; private set; }
+
+    /// <summary>
+    /// ISO-4217 currency code (uppercase) that the loan is denominated in, e.g. "USD", "EUR".
+    /// All fiat amounts (principal, balance, warning/liquidation prices) are in this currency.
+    /// </summary>
+    public string Currency { get; private set; } = "USD";
 
     // Thresholds (as decimals, e.g. 0.70 = 70%)
     public decimal WarningLtv { get; private set; }
@@ -106,7 +115,8 @@ public sealed class Loan : Entity
         decimal warningLtv,
         decimal liquidationLtv,
         string? notes,
-        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing,
+        string currency = "USD")
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Loan name is required.", nameof(name));
@@ -140,7 +150,8 @@ public sealed class Loan : Entity
             warningLtv,
             liquidationLtv,
             notes?.Trim(),
-            interestPaymentSchedule);
+            interestPaymentSchedule,
+            currency);
     }
 
     public void UpdateDetails(
@@ -158,7 +169,8 @@ public sealed class Loan : Entity
         decimal warningLtv,
         decimal liquidationLtv,
         string? notes,
-        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing)
+        InterestPaymentSchedule interestPaymentSchedule = InterestPaymentSchedule.Accruing,
+        string currency = "USD")
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Loan name is required.", nameof(name));
@@ -192,6 +204,7 @@ public sealed class Loan : Entity
         WarningLtv = warningLtv;
         LiquidationLtv = liquidationLtv;
         Notes = notes?.Trim();
+        Currency = string.IsNullOrWhiteSpace(currency) ? "USD" : currency.Trim().ToUpperInvariant();
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

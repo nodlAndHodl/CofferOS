@@ -3,6 +3,7 @@ using CofferOS.Application.Abstractions.Persistence;
 using CofferOS.Application.Abstractions.Providers;
 using CofferOS.Application.Contracts;
 using CofferOS.Domain.Wallets;
+using Microsoft.Extensions.Logging;
 
 namespace CofferOS.Application.Wallets;
 
@@ -15,6 +16,7 @@ public sealed class WalletRescanService
     private readonly IEnumerable<IWalletHistoryProvider> _historyProviders;
     private readonly IEnumerable<IBitcoinNodeProvider> _nodeProviders;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<WalletRescanService> _logger;
 
     public WalletRescanService(
         IWalletRepository wallets,
@@ -22,7 +24,8 @@ public sealed class WalletRescanService
         IAddressRepository addresses,
         IEnumerable<IWalletHistoryProvider> historyProviders,
         IEnumerable<IBitcoinNodeProvider> nodeProviders,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILogger<WalletRescanService> logger)
     {
         _wallets = wallets;
         _utxoProvider = utxoProvider;
@@ -30,12 +33,15 @@ public sealed class WalletRescanService
         _historyProviders = historyProviders;
         _nodeProviders = nodeProviders;
         _unitOfWork = unitOfWork;
+        _logger = logger;
     }
 
     public async Task<RescanResultDto> RescanAsync(Guid walletId, CancellationToken cancellationToken = default)
     {
         var wallet = await _wallets.GetByIdWithDescriptorsAsync(walletId, cancellationToken)
             ?? throw new InvalidOperationException("Wallet not found.");
+
+        _logger.LogInformation("Starting rescan for wallet {WalletId}", wallet.Id);
 
         var rawDescriptors = wallet.Descriptors.Select(d => d.Raw).ToList();
         var descriptorsWithId = wallet.Descriptors.Select(d => (d.Id, d.Raw, d.ScriptType)).ToList();
@@ -136,6 +142,11 @@ public sealed class WalletRescanService
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         var balance = WalletQueryService.ComputeBalance(utxos);
+        _logger.LogInformation(
+            "Rescan for wallet {WalletId} complete; {UtxoCount} UTXOs, balance {Balance}",
+            wallet.Id,
+            utxos.Count,
+            balance);
         return new RescanResultDto(utxos.Count, balance);
     }
 }

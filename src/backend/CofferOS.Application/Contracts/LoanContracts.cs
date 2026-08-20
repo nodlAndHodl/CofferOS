@@ -17,7 +17,8 @@ public sealed record CreateLoanRequest(
     decimal LiquidationLtv,
     decimal? CollateralCostBasis,
     string? Notes,
-    string InterestPaymentSchedule = "Accruing");
+    string InterestPaymentSchedule = "Accruing",
+    string Currency = "USD");
 
 /// <summary>Request to update an existing loan.</summary>
 public sealed record UpdateLoanRequest(
@@ -36,7 +37,8 @@ public sealed record UpdateLoanRequest(
     decimal LiquidationLtv,
     decimal? CollateralCostBasis,
     string? Notes,
-    string InterestPaymentSchedule = "Accruing");
+    string InterestPaymentSchedule = "Accruing",
+    string Currency = "USD");
 
 /// <summary>Loan summary for list views.</summary>
 public sealed record LoanSummaryDto(
@@ -57,6 +59,7 @@ public sealed record LoanSummaryDto(
     decimal DistanceToWarning,
     decimal DistanceToLiquidation,
     decimal CollateralCostBasis,
+    string Currency,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -87,6 +90,7 @@ public sealed record LoanDetailDto(
     decimal DistanceToLiquidation,
     decimal RemainingCollateralBuffer,
     decimal CollateralCostBasis,
+    string Currency,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
@@ -112,6 +116,7 @@ public sealed record LoanPriceSnapshotDto(
 /// <summary>Historical price data for a loan with calculated LTV.</summary>
 public sealed record LoanHistoricalDataDto(
     Guid LoanId,
+    string Currency,
     DateTimeOffset StartDate,
     DateTimeOffset EndDate,
     IReadOnlyList<LoanPriceSnapshotDto> Snapshots);

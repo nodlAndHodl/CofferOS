@@ -39,6 +39,7 @@ public static class DependencyInjection
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
         });
 
+        services.AddScoped<IUserSettingsRepository, UserSettingsRepository>();
         services.AddScoped<IWalletRepository, WalletRepository>();
         services.AddScoped<IAddressRepository, AddressRepository>();
         services.AddScoped<INoteRepository, NoteRepository>();
@@ -97,15 +98,18 @@ public static class DependencyInjection
         // Expose mutable source for manual price overrides
         services.AddSingleton<IMutableBitcoinPriceSource>(sp => sp.GetRequiredService<ManualBitcoinPriceProvider>());
 
+        // Exchange rate provider always backed by the CoinGecko singleton (cached rates)
+        services.AddSingleton<IExchangeRateProvider>(sp => sp.GetRequiredService<CoinGeckoPriceProvider>());
+
         // Application-level price orchestrator
         services.AddScoped<BitcoinPriceService>();
 
-        // Historical price fetching service (Coinbase candles support arbitrary date ranges on free tier)
-        services.AddScoped<CoinbaseHistoricalPriceService>(sp =>
+        // Historical price fetching service via CoinGecko market_chart/range (arbitrary dates, multi-currency)
+        services.AddScoped<CoinGeckoHistoricalPriceService>(sp =>
         {
             var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
-            var logger = sp.GetRequiredService<ILogger<CoinbaseHistoricalPriceService>>();
-            return new CoinbaseHistoricalPriceService(httpFactory.CreateClient("BitcoinPrice"), logger);
+            var logger = sp.GetRequiredService<ILogger<CoinGeckoHistoricalPriceService>>();
+            return new CoinGeckoHistoricalPriceService(httpFactory.CreateClient("BitcoinPrice"), logger);
         });
 
         return services;

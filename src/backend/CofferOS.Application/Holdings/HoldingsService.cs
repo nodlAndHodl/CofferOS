@@ -18,6 +18,7 @@ public sealed class HoldingsService : IHoldingsService
     private readonly ILoanRepository _loans;
     private readonly IRetirementAccountRepository _retirementAccounts;
     private readonly IBitcoinPriceProvider _priceProvider;
+    private readonly IExchangeRateProvider _exchangeRates;
     private readonly CostBasisService _costBasis;
 
     public HoldingsService(
@@ -25,12 +26,14 @@ public sealed class HoldingsService : IHoldingsService
         ILoanRepository loans,
         IRetirementAccountRepository retirementAccounts,
         IBitcoinPriceProvider priceProvider,
+        IExchangeRateProvider exchangeRates,
         CostBasisService costBasis)
     {
         _walletQueries = walletQueries;
         _loans = loans;
         _retirementAccounts = retirementAccounts;
         _priceProvider = priceProvider;
+        _exchangeRates = exchangeRates;
         _costBasis = costBasis;
     }
 
@@ -54,7 +57,7 @@ public sealed class HoldingsService : IHoldingsService
             cancellationToken);
         var collateralCostBasis = loanCostBasisById.Values.Sum();
 
-        var retirementCostBasis = retirementAccounts.Sum(a => a.GetTotalCostBasis());
+        var retirementCostBasis = retirementAccounts.Sum(a => ConvertToUsd(a.GetTotalCostBasis(), a.Currency));
 
         var totalCostBasis = walletCostBasis + collateralCostBasis + retirementCostBasis;
         var unrealizedPnl = totalValue - totalCostBasis;
@@ -185,7 +188,7 @@ public sealed class HoldingsService : IHoldingsService
         foreach (var account in retirementAccounts)
         {
             var value = account.BitcoinAmount * btcPrice;
-            var costBasis = account.GetTotalCostBasis();
+            var costBasis = ConvertToUsd(account.GetTotalCostBasis(), account.Currency);
             holdings.Add(new HoldingDto
             {
                 Id = account.Id,
@@ -203,6 +206,20 @@ public sealed class HoldingsService : IHoldingsService
         }
 
         return holdings;
+    }
+
+    private decimal ConvertToUsd(decimal value, string currency)
+    {
+        if (string.IsNullOrWhiteSpace(currency) || currency.Equals("USD", StringComparison.OrdinalIgnoreCase))
+            return value;
+
+        var rates = _exchangeRates.GetCachedRates();
+        if (!rates.TryGetValue(currency.ToLowerInvariant(), out var targetRate) || targetRate <= 0)
+            return value;
+        if (!rates.TryGetValue("usd", out var usdRate) || usdRate <= 0)
+            return value;
+
+        return value * (usdRate / targetRate);
     }
 
     public async Task<decimal> GetTotalBitcoinAsync(CancellationToken cancellationToken = default)

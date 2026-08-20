@@ -11,6 +11,7 @@ public sealed class CreateRetirementAccountRequest
     public RetirementAccountType AccountType { get; init; }
     public string Provider { get; init; } = string.Empty;
     public decimal BitcoinAmount { get; init; }
+    public string Currency { get; init; } = "USD";
     public string? Notes { get; init; }
     public List<CostBasisEntryInput> CostBasisEntries { get; init; } = [];
 }
@@ -21,6 +22,7 @@ public sealed class UpdateRetirementAccountRequest
     public string Name { get; init; } = string.Empty;
     public string Provider { get; init; } = string.Empty;
     public decimal BitcoinAmount { get; init; }
+    public string Currency { get; init; } = "USD";
     public string? Notes { get; init; }
 }
 
@@ -49,6 +51,7 @@ public sealed class RetirementAccountDto
     public RetirementAccountType AccountType { get; init; }
     public string Provider { get; init; } = string.Empty;
     public decimal BitcoinAmount { get; init; }
+    public string Currency { get; init; } = "USD";
     public string? Notes { get; init; }
     public decimal TotalCostBasis { get; init; }
     public IReadOnlyList<RetirementAccountCostBasisDto> CostBasisEntries { get; init; } = [];

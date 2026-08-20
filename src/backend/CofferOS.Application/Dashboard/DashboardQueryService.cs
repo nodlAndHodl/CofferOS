@@ -137,6 +137,7 @@ public sealed class DashboardQueryService : IDashboardQueryService
             distWarn,
             distLiq,
             0m, // dashboard summary doesn't need cost basis; set to 0
+            loan.Currency,
             loan.CreatedAt,
             loan.UpdatedAt);
     }

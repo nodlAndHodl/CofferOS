@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { RetirementAccount } from '../types';
 import { Button, Card, Spinner } from '../components/ui';
-import { formatFiat } from '../lib/format';
+import { formatForDisplay } from '../lib/currency';
+import { useBitcoinPrice } from '../hooks/useBitcoinPrice';
+import { useUserSettings } from '../contexts/UserSettingsContext';
 import { CreateRetirementAccountModal } from '../components/CreateRetirementAccountModal';
 
 export function RetirementAccountsPage() {
@@ -12,6 +14,10 @@ export function RetirementAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const { settings } = useUserSettings();
+  const { exchangeRates } = useBitcoinPrice();
+  const displayCurrency = settings.currency;
+  const fmt = (value: number, valueCurrency: string) => formatForDisplay(value, valueCurrency, displayCurrency, exchangeRates);
 
   async function load() {
     setLoading(true);
@@ -79,7 +85,7 @@ export function RetirementAccountsPage() {
                   <div className="text-right">
                     <div className="font-bold">{account.bitcoinAmount.toFixed(8)} BTC</div>
                     <div className="text-xs text-[var(--color-coffer-muted)]">
-                      Cost basis {formatFiat(account.totalCostBasis)}
+                      Cost basis {fmt(account.totalCostBasis, account.currency ?? 'USD')}
                     </div>
                   </div>
                 </div>

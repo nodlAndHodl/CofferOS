@@ -4,7 +4,7 @@ namespace CofferOS.Domain.Treasury;
 
 /// <summary>
 /// Historical price snapshot for a loan, used to calculate historical LTV and other metrics.
-/// Linked to a specific loan to enable per-loan historical analysis without repeated API calls.
+/// The PriceUsd value is actually the BTC price in the snapshot's Currency (not necessarily USD).
 /// </summary>
 public sealed class LoanPriceSnapshot
 {
@@ -13,17 +13,20 @@ public sealed class LoanPriceSnapshot
     public LoanPriceSnapshot(
         Guid loanId,
         DateTimeOffset snapshotDate,
-        decimal priceUsd,
+        decimal price,
+        string currency = "USD",
         string source = "coingecko")
     {
         if (loanId == Guid.Empty) throw new ArgumentException("LoanId is required.", nameof(loanId));
         if (snapshotDate == default) throw new ArgumentException("Snapshot date is required.", nameof(snapshotDate));
-        if (priceUsd < 0) throw new ArgumentException("Price cannot be negative.", nameof(priceUsd));
+        if (price < 0) throw new ArgumentException("Price cannot be negative.", nameof(price));
+        if (string.IsNullOrWhiteSpace(currency)) throw new ArgumentException("Currency is required.", nameof(currency));
         if (string.IsNullOrWhiteSpace(source)) throw new ArgumentException("Source is required.", nameof(source));
 
         LoanId = loanId;
         SnapshotDate = snapshotDate;
-        PriceUsd = priceUsd;
+        PriceUsd = price;
+        Currency = currency.Trim().ToUpperInvariant();
         Source = source.Trim();
         CreatedAt = DateTimeOffset.UtcNow;
     }
@@ -32,6 +35,7 @@ public sealed class LoanPriceSnapshot
     public Guid LoanId { get; private set; }
     public DateTimeOffset SnapshotDate { get; private set; }
     public decimal PriceUsd { get; private set; }
+    public string Currency { get; private set; } = "USD";
     public string Source { get; private set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; private set; }
 }

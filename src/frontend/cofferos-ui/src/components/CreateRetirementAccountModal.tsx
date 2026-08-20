@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { X, Plus, Trash2, Calendar } from 'lucide-react';
 import { api } from '../api/client';
 import type { CreateRetirementAccountRequest, RetirementAccountType } from '../types';
+import { useUserSettings } from '../contexts/UserSettingsContext';
+import { SUPPORTED_CURRENCIES } from '../lib/currency';
 import { Button, Card } from './ui';
 
 interface Props {
@@ -21,10 +23,12 @@ const ACCOUNT_TYPES: { value: RetirementAccountType; label: string }[] = [
 ];
 
 export function CreateRetirementAccountModal({ onClose, onCreated }: Props) {
+  const { settings } = useUserSettings();
   const [name, setName] = useState('');
   const [accountType, setAccountType] = useState<RetirementAccountType>('TraditionalIra');
   const [provider, setProvider] = useState('');
   const [bitcoinAmount, setBitcoinAmount] = useState('');
+  const [currency, setCurrency] = useState(settings.currency);
   const [notes, setNotes] = useState('');
   const [costBasisEntries, setCostBasisEntries] = useState<Array<{ costBasis: string; acquisitionDate: string }>>([
     { costBasis: '', acquisitionDate: new Date().toISOString().split('T')[0] },
@@ -63,6 +67,7 @@ export function CreateRetirementAccountModal({ onClose, onCreated }: Props) {
         accountType,
         provider: provider.trim(),
         bitcoinAmount: btcAmount,
+        currency,
         notes: notes.trim() || undefined,
         costBasisEntries: validCostBasis.map((entry) => ({
           costBasis: parseFloat(entry.costBasis),
@@ -180,6 +185,22 @@ export function CreateRetirementAccountModal({ onClose, onCreated }: Props) {
               placeholder="0.00000000"
               className={inputClass}
             />
+          </div>
+
+          {/* Currency */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-coffer-muted)]">Account Currency</label>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              className={inputClass}
+            >
+              {SUPPORTED_CURRENCIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.code} — {c.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Notes */}

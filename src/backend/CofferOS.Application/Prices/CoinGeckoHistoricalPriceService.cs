@@ -19,26 +19,32 @@ public sealed class CoinGeckoHistoricalPriceService
     }
 
     /// <summary>
-    /// Fetches daily BTC prices from startDate to endDate (inclusive).
+    /// Fetches daily BTC prices from startDate to endDate (inclusive) in the requested currency.
     /// Returns one point per day, sorted by date ascending.
     /// </summary>
     public async Task<List<(DateTimeOffset Date, decimal Price)>> GetDailyPricesAsync(
         DateTimeOffset startDate,
         DateTimeOffset endDate,
+        string currency = "USD",
         CancellationToken cancellationToken = default)
     {
         if (endDate < startDate)
             throw new ArgumentException("End date must be >= start date.", nameof(endDate));
 
+        var targetCurrency = string.IsNullOrWhiteSpace(currency) ? "usd" : currency.Trim().ToLowerInvariant();
         var result = new List<(DateTimeOffset, decimal)>();
 
         try
         {
-            var startUnix = (long)startDate.ToUnixTimeSeconds();
-            var endUnix = (long)endDate.ToUnixTimeSeconds();
+            // CoinGecko's range end is exclusive-ish; add a day minus a second to include the end date.
+            var startUnix = (long)new DateTimeOffset(startDate.Date, TimeSpan.Zero).ToUnixTimeSeconds();
+            var endUnix = (long)new DateTimeOffset(endDate.Date.AddDays(1).AddSeconds(-1), TimeSpan.Zero).ToUnixTimeSeconds();
+
+            if (startUnix >= endUnix)
+                endUnix = startUnix + 86399;
 
             // market_chart/range is designed for arbitrary date windows, one API call only.
-            var url = $"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from={startUnix}&to={endUnix}";
+            var url = $"https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency={targetCurrency}&from={startUnix}&to={endUnix}";
 
             using var resp = await _http.GetAsync(url, cancellationToken);
             if (!resp.IsSuccessStatusCode)
@@ -71,8 +77,8 @@ public sealed class CoinGeckoHistoricalPriceService
                 }
             }
 
-            _logger.LogInformation("Fetched {Count} daily prices from CoinGecko for range {Start:s} to {End:s}",
-                result.Count, startDate, endDate);
+            _logger.LogInformation("CoinGecko returned {Count} daily BTC-{Currency} prices for range {Start:s} to {End:s}",
+                result.Count, targetCurrency.ToUpperInvariant(), startDate, endDate);
         }
         catch (Exception ex)
         {

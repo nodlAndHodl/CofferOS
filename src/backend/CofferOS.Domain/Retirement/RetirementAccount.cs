@@ -15,12 +15,14 @@ public sealed class RetirementAccount : Entity
         RetirementAccountType accountType,
         string provider,
         decimal bitcoinAmount,
+        string currency,
         string? notes)
     {
         Name = name;
         AccountType = accountType;
         Provider = provider;
         BitcoinAmount = bitcoinAmount;
+        Currency = currency;
         Notes = notes;
         CreatedAt = DateTimeOffset.UtcNow;
         UpdatedAt = CreatedAt;
@@ -30,6 +32,7 @@ public sealed class RetirementAccount : Entity
     public RetirementAccountType AccountType { get; private set; }
     public string Provider { get; private set; } = string.Empty;
     public decimal BitcoinAmount { get; private set; }
+    public string Currency { get; private set; } = "USD";
     public string? Notes { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -43,6 +46,7 @@ public sealed class RetirementAccount : Entity
         RetirementAccountType accountType,
         string provider,
         decimal bitcoinAmount,
+        string currency = "USD",
         string? notes = null)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -57,10 +61,11 @@ public sealed class RetirementAccount : Entity
             accountType,
             provider.Trim(),
             bitcoinAmount,
+            string.IsNullOrWhiteSpace(currency) ? "USD" : currency.Trim().ToUpperInvariant(),
             notes?.Trim());
     }
 
-    public void UpdateBasicInfo(string name, string provider, decimal bitcoinAmount, string? notes)
+    public void UpdateBasicInfo(string name, string provider, decimal bitcoinAmount, string currency, string? notes)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Account name is required.", nameof(name));
@@ -72,6 +77,7 @@ public sealed class RetirementAccount : Entity
         Name = name.Trim();
         Provider = provider.Trim();
         BitcoinAmount = bitcoinAmount;
+        Currency = string.IsNullOrWhiteSpace(currency) ? "USD" : currency.Trim().ToUpperInvariant();
         Notes = notes?.Trim();
         UpdatedAt = DateTimeOffset.UtcNow;
     }
