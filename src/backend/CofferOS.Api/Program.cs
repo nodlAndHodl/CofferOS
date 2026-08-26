@@ -30,6 +30,7 @@ builder.Services.AddScoped<IWalletNotificationService, WalletNotificationService
 builder.Services.AddScoped<ILoanNotificationService, LoanNotificationService>();
 
 builder.Services.AddHostedService<ElectrumBlockListenerHostedService>();
+builder.Services.AddHostedService<ElectrumStartupRescanHostedService>();
 builder.Services.AddHostedService<LoanDailyAccrualService>();
 builder.Services.AddHostedService<DailyPriceHistoryService>();
 builder.Services.AddHostedService<PriceRefreshHostedService>();

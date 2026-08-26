@@ -128,6 +128,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
           );
           break;
 
+        case 'bitcoin_price_updated':
+          // Handled via the generic onEvent callback (see useBitcoinPrice.ts)
+          break;
+
         default:
           console.warn('Unknown notification type:', notification.eventType);
       }

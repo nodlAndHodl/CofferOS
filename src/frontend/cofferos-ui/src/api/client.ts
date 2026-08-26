@@ -1,5 +1,7 @@
 import type {
+  AddCollateralRequest,
   BtcPriceInfo,
+  CollateralAdjustmentResponse,
   CostBasisEntryInput,
   CreateLoanRequest,
   CreateNoteRequest,
@@ -11,6 +13,7 @@ import type {
   Holding,
   HoldingsSummary,
   ImportWalletRequest,
+  LoanCollateralTransaction,
   LoanDetail,
   LoanHistoricalData,
   LoanSummary,
@@ -18,6 +21,7 @@ import type {
   Note,
   ObjectMetadata,
   RecentActivityPage,
+  RemoveCollateralRequest,
   RetirementAccount,
   TimelineEvent,
   TreasurySummary,
@@ -117,6 +121,11 @@ export const api = {
   deleteLoan: (id: string) => request<void>(`/loans/${id}`, { method: 'DELETE' }),
   getBtcPrice: () => request<BtcPriceInfo>('/price'),
   getLoanHistoricalData: (id: string) => request<LoanHistoricalData>(`/loans/${id}/historical`),
+  getLoanCollateralTransactions: (id: string) => request<LoanCollateralTransaction[]>(`/loans/${id}/collateral/transactions`),
+  addLoanCollateral: (id: string, payload: AddCollateralRequest) =>
+    request<CollateralAdjustmentResponse>(`/loans/${id}/collateral/add`, { method: 'POST', body: JSON.stringify(payload) }),
+  removeLoanCollateral: (id: string, payload: RemoveCollateralRequest) =>
+    request<CollateralAdjustmentResponse>(`/loans/${id}/collateral/remove`, { method: 'POST', body: JSON.stringify(payload) }),
 
   // Cost basis
   setCostBasis: (target: string, reference: string, amount: number) =>

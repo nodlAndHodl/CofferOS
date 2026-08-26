@@ -120,3 +120,31 @@ public sealed record LoanHistoricalDataDto(
     DateTimeOffset StartDate,
     DateTimeOffset EndDate,
     IReadOnlyList<LoanPriceSnapshotDto> Snapshots);
+
+/// <summary>Request to add BTC collateral to a loan.</summary>
+public sealed record AddCollateralRequest(
+    decimal AmountBtc,
+    decimal BtcPriceAtTime,
+    DateTimeOffset? TransactionDate,
+    string? Notes);
+
+/// <summary>Request to remove BTC collateral from a loan.</summary>
+public sealed record RemoveCollateralRequest(
+    decimal AmountBtc,
+    decimal BtcPriceAtTime,
+    DateTimeOffset? TransactionDate,
+    string? Notes);
+
+/// <summary>A single collateral transaction for a loan.</summary>
+public sealed record LoanCollateralTransactionDto(
+    Guid Id,
+    Guid LoanId,
+    string TransactionType,
+    decimal AmountBtc,
+    decimal BtcPriceAtTime,
+    decimal CollateralAmountBtcBefore,
+    decimal CollateralAmountBtcAfter,
+    decimal LtvAtTime,
+    DateTimeOffset TransactionDate,
+    string? Notes,
+    DateTimeOffset CreatedAt);

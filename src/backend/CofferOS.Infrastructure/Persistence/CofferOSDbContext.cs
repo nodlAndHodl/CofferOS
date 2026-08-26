@@ -38,6 +38,7 @@ public sealed class CofferOSDbContext : DbContext
     public DbSet<Loan> Loans => Set<Loan>();
     public DbSet<LoanPayment> LoanPayments => Set<LoanPayment>();
     public DbSet<LoanPriceSnapshot> LoanPriceSnapshots => Set<LoanPriceSnapshot>();
+    public DbSet<LoanCollateralTransaction> LoanCollateralTransactions => Set<LoanCollateralTransaction>();
     public DbSet<RetirementAccount> RetirementAccounts => Set<RetirementAccount>();
     public DbSet<RetirementAccountCostBasis> RetirementAccountCostBasisEntries => Set<RetirementAccountCostBasis>();
     public DbSet<CofferOS.Domain.Prices.BitcoinPriceHistory> BitcoinPriceHistory => Set<CofferOS.Domain.Prices.BitcoinPriceHistory>();
@@ -250,6 +251,23 @@ public sealed class CofferOSDbContext : DbContext
             b.HasIndex(x => x.LoanId);
             b.HasIndex(x => x.SnapshotDate);
             b.HasIndex(x => new { x.LoanId, x.SnapshotDate });
+        });
+
+        modelBuilder.Entity<LoanCollateralTransaction>(b =>
+        {
+            b.ToTable("loan_collateral_transactions");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.LoanId);
+            b.Property(x => x.TransactionType).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.AmountBtc).HasPrecision(18, 8);
+            b.Property(x => x.BtcPriceAtTime).HasPrecision(18, 8);
+            b.Property(x => x.CollateralAmountBtcBefore).HasPrecision(18, 8);
+            b.Property(x => x.CollateralAmountBtcAfter).HasPrecision(18, 8);
+            b.Property(x => x.LtvAtTime).HasPrecision(18, 8);
+            b.Property(x => x.Notes).HasMaxLength(2000);
+            b.HasIndex(x => x.LoanId);
+            b.HasIndex(x => x.TransactionDate);
+            b.HasIndex(x => new { x.LoanId, x.TransactionDate });
         });
 
         modelBuilder.Entity<RetirementAccount>(b =>

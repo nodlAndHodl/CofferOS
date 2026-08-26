@@ -112,6 +112,49 @@ public static class TreasuryEndpoints
             })
             .WithName("GetLoanHistoricalData");
 
+        // Collateral transactions
+        api.MapGet("/loans/{id:guid}/collateral/transactions", async (Guid id, TreasuryService treasury, CancellationToken ct) =>
+            {
+                try
+                {
+                    var txns = await treasury.GetCollateralTransactionsAsync(id, ct);
+                    return Results.Ok(txns);
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.NotFound(new { error = ex.Message });
+                }
+            })
+            .WithName("GetLoanCollateralTransactions");
+
+        api.MapPost("/loans/{id:guid}/collateral/add", async (Guid id, AddCollateralRequest request, TreasuryService treasury, CancellationToken ct) =>
+            {
+                try
+                {
+                    var (loan, txn) = await treasury.AddCollateralAsync(id, request, ct);
+                    return Results.Ok(new { loan, transaction = txn });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+            })
+            .WithName("AddLoanCollateral");
+
+        api.MapPost("/loans/{id:guid}/collateral/remove", async (Guid id, RemoveCollateralRequest request, TreasuryService treasury, CancellationToken ct) =>
+            {
+                try
+                {
+                    var (loan, txn) = await treasury.RemoveCollateralAsync(id, request, ct);
+                    return Results.Ok(new { loan, transaction = txn });
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(new { error = ex.Message });
+                }
+            })
+            .WithName("RemoveLoanCollateral");
+
         return app;
     }
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Edit2 } from 'lucide-react';
+import { ArrowLeft, Calendar, Edit2, MinusCircle, PlusCircle } from 'lucide-react';
 import { api } from '../api/client';
-import type { LoanDetail, LoanHistoricalData } from '../types';
+import type { LoanCollateralTransaction, LoanDetail, LoanHistoricalData } from '../types';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { LoanHistoricalChart } from '../components/LoanHistoricalChart';
 import { formatDate, formatPercent } from '../lib/format';
@@ -22,6 +22,11 @@ export function LoanDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [collateralTransactions, setCollateralTransactions] = useState<LoanCollateralTransaction[]>([]);
+  const [collateralModalMode, setCollateralModalMode] = useState<'add' | 'remove' | null>(null);
+  const [collateralForm, setCollateralForm] = useState({ amountBtc: 0, btcPriceAtTime: 0, transactionDate: '', notes: '' });
+  const [collateralSaving, setCollateralSaving] = useState(false);
+  const [collateralError, setCollateralError] = useState<string | null>(null);
   const { settings } = useUserSettings();
   const { exchangeRates } = useBitcoinPrice();
   const displayCurrency = settings.currency;
@@ -51,6 +56,45 @@ export function LoanDetailPage() {
     notes: '',
     currency: 'USD',
   });
+
+  function openCollateralModal(mode: 'add' | 'remove') {
+    setCollateralError(null);
+    setCollateralForm({
+      amountBtc: 0,
+      btcPriceAtTime: loan?.currentBtcPrice ?? 0,
+      transactionDate: new Date().toISOString().slice(0, 10),
+      notes: '',
+    });
+    setCollateralModalMode(mode);
+  }
+
+  async function submitCollateral() {
+    if (!id || !loan) return;
+    if (collateralForm.amountBtc <= 0) { setCollateralError('Amount must be greater than 0'); return; }
+    if (collateralForm.btcPriceAtTime < 0) { setCollateralError('BTC price cannot be negative'); return; }
+    setCollateralSaving(true);
+    setCollateralError(null);
+    try {
+      const payload = {
+        amountBtc: collateralForm.amountBtc,
+        btcPriceAtTime: collateralForm.btcPriceAtTime,
+        transactionDate: collateralForm.transactionDate ? new Date(collateralForm.transactionDate).toISOString() : null,
+        notes: collateralForm.notes || null,
+      };
+      const result = collateralModalMode === 'add'
+        ? await api.addLoanCollateral(id, payload)
+        : await api.removeLoanCollateral(id, payload);
+      setLoan(result.loan);
+      setCollateralTransactions((prev) => [...prev, result.transaction].sort(
+        (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
+      ));
+      setCollateralModalMode(null);
+    } catch (e) {
+      setCollateralError(e instanceof Error ? e.message : 'Failed to update collateral');
+    } finally {
+      setCollateralSaving(false);
+    }
+  }
 
   async function load() {
     if (!id) return;
@@ -93,12 +137,15 @@ export function LoanDetailPage() {
   useEffect(() => {
     if (!id) return;
     api.getLoanHistoricalData(id)
-      .then((data) => {
-        setHistoricalData(data);
-      })
-      .catch((e) => {
-        console.error('Failed to load historical data:', e);
-      });
+      .then((data) => { setHistoricalData(data); })
+      .catch((e) => { console.error('Failed to load historical data:', e); });
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    api.getLoanCollateralTransactions(id)
+      .then((data) => { setCollateralTransactions(data); })
+      .catch((e) => { console.error('Failed to load collateral transactions:', e); });
   }, [id]);
 
   async function save() {
@@ -350,7 +397,27 @@ export function LoanDetailPage() {
 
         {/* Collateral & LTV */}
         <Card className="p-4">
-          <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Collateral &amp; Risk</div>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Collateral &amp; Risk</div>
+            {loan.status === 'Active' && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => openCollateralModal('add')}
+                  className="flex items-center gap-1 rounded px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-400/10"
+                  title="Add Collateral"
+                >
+                  <PlusCircle size={14} /> Add
+                </button>
+                <button
+                  onClick={() => openCollateralModal('remove')}
+                  className="flex items-center gap-1 rounded px-2 py-1 text-xs text-red-400 hover:bg-red-400/10"
+                  title="Remove Collateral"
+                >
+                  <MinusCircle size={14} /> Remove
+                </button>
+              </div>
+            )}
+          </div>
           <div className="space-y-2 text-sm">
             <Row label="Collateral" value={`${loan.collateralAmountBtc.toFixed(4)} BTC`} />
             <Row label="BTC Price" value={fmt(loan.currentBtcPrice)} />
@@ -392,6 +459,55 @@ export function LoanDetailPage() {
         </Card>
       )}
 
+      {/* Collateral History */}
+      <Card className="mt-6 p-4">
+        <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Collateral History</div>
+        {collateralTransactions.length === 0 ? (
+          <p className="text-sm text-[var(--color-coffer-muted)]">No collateral adjustments recorded yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[var(--color-coffer-border)] text-left text-[var(--color-coffer-muted)]">
+                  <th className="pb-2 pr-4 font-medium">Date</th>
+                  <th className="pb-2 pr-4 font-medium">Type</th>
+                  <th className="pb-2 pr-4 font-medium text-right">Amount (BTC)</th>
+                  <th className="pb-2 pr-4 font-medium text-right">BTC Price</th>
+                  <th className="pb-2 pr-4 font-medium text-right">Collateral After</th>
+                  <th className="pb-2 pr-4 font-medium text-right">LTV After</th>
+                  <th className="pb-2 font-medium">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...collateralTransactions].reverse().map((txn) => (
+                  <tr key={txn.id} className="border-b border-[var(--color-coffer-border)]/30 py-1">
+                    <td className="py-2 pr-4 text-[var(--color-coffer-muted)]">{formatDate(txn.transactionDate)}</td>
+                    <td className="py-2 pr-4">
+                      <span className={txn.transactionType === 'Added' ? 'text-emerald-400' : 'text-red-400'}>
+                        {txn.transactionType === 'Added' ? '▲ Added' : '▼ Removed'}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 text-right font-medium">{txn.amountBtc.toFixed(8)}</td>
+                    <td className="py-2 pr-4 text-right">{fmt(txn.btcPriceAtTime)}</td>
+                    <td className="py-2 pr-4 text-right">{txn.collateralAmountBtcAfter.toFixed(8)} BTC</td>
+                    <td className="py-2 pr-4 text-right">
+                      <span className={
+                        txn.ltvAtTime >= loan.liquidationLtv ? 'text-red-400'
+                        : txn.ltvAtTime >= loan.warningLtv ? 'text-yellow-400'
+                        : 'text-emerald-400'
+                      }>
+                        {formatPercent(txn.ltvAtTime)}
+                      </span>
+                    </td>
+                    <td className="py-2 text-[var(--color-coffer-muted)]">{txn.notes ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       {/* Notes */}
       <Card className="mt-4 p-4">
         <div className="mb-2 text-sm font-semibold uppercase tracking-wide text-[var(--color-coffer-muted)]">Notes</div>
@@ -401,6 +517,82 @@ export function LoanDetailPage() {
           <p className="whitespace-pre-wrap text-sm">{loan.notes || '—'}</p>
         )}
       </Card>
+
+      {/* Collateral Adjustment Modal */}
+      {collateralModalMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-[var(--color-coffer-border)] bg-[var(--color-coffer-surface)] p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-bold">
+              {collateralModalMode === 'add' ? '▲ Add Collateral' : '▼ Remove Collateral'}
+            </h2>
+
+            {collateralError && (
+              <div className="mb-4 rounded bg-red-500/10 px-3 py-2 text-sm text-red-400">{collateralError}</div>
+            )}
+
+            <div className="space-y-3">
+              <Field label="Amount (BTC)">
+                <input
+                  type="number"
+                  step="0.00000001"
+                  min="0"
+                  className={inputClass}
+                  value={collateralForm.amountBtc || ''}
+                  onChange={(e) => setCollateralForm({ ...collateralForm, amountBtc: parseFloat(e.target.value) || 0 })}
+                  autoFocus
+                />
+              </Field>
+              <Field label={`BTC Price (${loan.currency})`}>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={collateralForm.btcPriceAtTime || ''}
+                  onChange={(e) => setCollateralForm({ ...collateralForm, btcPriceAtTime: parseFloat(e.target.value) || 0 })}
+                />
+              </Field>
+              <Field label="Date">
+                <input
+                  type="date"
+                  className={`${inputClass} [color-scheme:dark]`}
+                  value={collateralForm.transactionDate}
+                  onChange={(e) => setCollateralForm({ ...collateralForm, transactionDate: e.target.value })}
+                />
+              </Field>
+              <Field label="Notes (optional)">
+                <textarea
+                  className={`${inputClass} h-16`}
+                  value={collateralForm.notes}
+                  onChange={(e) => setCollateralForm({ ...collateralForm, notes: e.target.value })}
+                />
+              </Field>
+
+              {collateralForm.amountBtc > 0 && collateralForm.btcPriceAtTime > 0 && (
+                <div className="rounded bg-[var(--color-coffer-bg)]/60 px-3 py-2 text-xs text-[var(--color-coffer-muted)]">
+                  <span className="font-medium text-white">Preview: </span>
+                  {collateralModalMode === 'add' ? (
+                    <>New collateral: {(loan.collateralAmountBtc + collateralForm.amountBtc).toFixed(8)} BTC</>
+                  ) : (
+                    <>New collateral: {Math.max(0, loan.collateralAmountBtc - collateralForm.amountBtc).toFixed(8)} BTC</>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={submitCollateral}
+                  disabled={collateralSaving}
+                  className={collateralModalMode === 'remove' ? 'bg-red-500 hover:bg-red-600' : undefined}
+                >
+                  {collateralSaving ? 'Saving...' : collateralModalMode === 'add' ? 'Add Collateral' : 'Remove Collateral'}
+                </Button>
+                <Button variant="ghost" onClick={() => setCollateralModalMode(null)} disabled={collateralSaving}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

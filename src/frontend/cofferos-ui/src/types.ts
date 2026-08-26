@@ -512,3 +512,37 @@ export interface BitcoinPriceInfo {
 }
 
 export type SupportedCurrency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'CHF' | 'JPY';
+
+// Loan collateral transactions
+export interface LoanCollateralTransaction {
+  id: string;
+  loanId: string;
+  transactionType: 'Added' | 'Removed';
+  amountBtc: number;
+  btcPriceAtTime: number;
+  collateralAmountBtcBefore: number;
+  collateralAmountBtcAfter: number;
+  ltvAtTime: number;
+  transactionDate: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface AddCollateralRequest {
+  amountBtc: number;
+  btcPriceAtTime: number;
+  transactionDate?: string | null;
+  notes?: string | null;
+}
+
+export interface RemoveCollateralRequest {
+  amountBtc: number;
+  btcPriceAtTime: number;
+  transactionDate?: string | null;
+  notes?: string | null;
+}
+
+export interface CollateralAdjustmentResponse {
+  loan: LoanDetail;
+  transaction: LoanCollateralTransaction;
+}
