@@ -18,6 +18,7 @@ public sealed class TreasuryService
     private readonly ILoanRepository _loans;
     private readonly ILoanPaymentRepository _payments;
     private readonly ILoanPriceSnapshotRepository _priceSnapshots;
+    private readonly ILoanCollateralTransactionRepository _collateralTransactions;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IBitcoinPriceProvider _priceProvider;
     private readonly IExchangeRateProvider _exchangeRates;
@@ -30,6 +31,7 @@ public sealed class TreasuryService
         ILoanRepository loans,
         ILoanPaymentRepository payments,
         ILoanPriceSnapshotRepository priceSnapshots,
+        ILoanCollateralTransactionRepository collateralTransactions,
         IUnitOfWork unitOfWork,
         IBitcoinPriceProvider priceProvider,
         IExchangeRateProvider exchangeRates,
@@ -41,6 +43,7 @@ public sealed class TreasuryService
         _loans = loans;
         _payments = payments;
         _priceSnapshots = priceSnapshots;
+        _collateralTransactions = collateralTransactions;
         _unitOfWork = unitOfWork;
         _priceProvider = priceProvider;
         _exchangeRates = exchangeRates;
@@ -506,6 +509,111 @@ public sealed class TreasuryService
 
         return new LoanHistoricalDataDto(loanId, loan.Currency, startDate, endDate, snapshotDtos);
     }
+
+    public async Task<IReadOnlyList<LoanCollateralTransactionDto>> GetCollateralTransactionsAsync(Guid loanId, CancellationToken cancellationToken = default)
+    {
+        var loan = await _loans.GetByIdAsync(loanId, cancellationToken);
+        if (loan is null) throw new ArgumentException("Loan not found.", nameof(loanId));
+
+        var txns = await _collateralTransactions.GetByLoanAsync(loanId, cancellationToken);
+        return txns.Select(ToCollateralTransactionDto).ToList();
+    }
+
+    public async Task<(LoanDetailDto Loan, LoanCollateralTransactionDto Transaction)> AddCollateralAsync(
+        Guid loanId, AddCollateralRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.AmountBtc <= 0)
+            throw new ArgumentException("Amount must be greater than zero.", nameof(request.AmountBtc));
+        if (request.BtcPriceAtTime < 0)
+            throw new ArgumentException("BTC price cannot be negative.", nameof(request.BtcPriceAtTime));
+
+        var loan = await _loans.GetByIdAsync(loanId, cancellationToken);
+        if (loan is null) throw new ArgumentException("Loan not found.", nameof(loanId));
+
+        var collateralBefore = loan.CollateralAmountBtc;
+        var collateralAfter = collateralBefore + request.AmountBtc;
+        var txDate = request.TransactionDate ?? DateTimeOffset.UtcNow;
+
+        var pays = await _payments.GetByLoanAsync(loanId, cancellationToken);
+        var snap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
+        var collateralValue = LoanCalculator.CalculateCollateralValue(collateralAfter, request.BtcPriceAtTime);
+        var ltvAfter = LoanCalculator.CalculateCurrentLtv(snap.CurrentBalance, collateralValue);
+
+        loan.UpdateCollateral(collateralAfter, request.BtcPriceAtTime);
+
+        var txn = new LoanCollateralTransaction(
+            loanId,
+            CollateralTransactionType.Added,
+            request.AmountBtc,
+            request.BtcPriceAtTime,
+            collateralBefore,
+            collateralAfter,
+            ltvAfter,
+            txDate,
+            request.Notes);
+
+        await _collateralTransactions.AddAsync(txn, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updatedSnap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
+        return (await ToDetail(loan, updatedSnap, cancellationToken), ToCollateralTransactionDto(txn));
+    }
+
+    public async Task<(LoanDetailDto Loan, LoanCollateralTransactionDto Transaction)> RemoveCollateralAsync(
+        Guid loanId, RemoveCollateralRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.AmountBtc <= 0)
+            throw new ArgumentException("Amount must be greater than zero.", nameof(request.AmountBtc));
+        if (request.BtcPriceAtTime < 0)
+            throw new ArgumentException("BTC price cannot be negative.", nameof(request.BtcPriceAtTime));
+
+        var loan = await _loans.GetByIdAsync(loanId, cancellationToken);
+        if (loan is null) throw new ArgumentException("Loan not found.", nameof(loanId));
+
+        var collateralBefore = loan.CollateralAmountBtc;
+        if (request.AmountBtc > collateralBefore)
+            throw new ArgumentException($"Cannot remove {request.AmountBtc} BTC; only {collateralBefore} BTC of collateral exists.", nameof(request.AmountBtc));
+
+        var collateralAfter = collateralBefore - request.AmountBtc;
+        var txDate = request.TransactionDate ?? DateTimeOffset.UtcNow;
+
+        var pays = await _payments.GetByLoanAsync(loanId, cancellationToken);
+        var snap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
+        var collateralValue = LoanCalculator.CalculateCollateralValue(collateralAfter, request.BtcPriceAtTime);
+        var ltvAfter = LoanCalculator.CalculateCurrentLtv(snap.CurrentBalance, collateralValue);
+
+        loan.UpdateCollateral(collateralAfter, request.BtcPriceAtTime);
+
+        var txn = new LoanCollateralTransaction(
+            loanId,
+            CollateralTransactionType.Removed,
+            request.AmountBtc,
+            request.BtcPriceAtTime,
+            collateralBefore,
+            collateralAfter,
+            ltvAfter,
+            txDate,
+            request.Notes);
+
+        await _collateralTransactions.AddAsync(txn, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        var updatedSnap = await _accrual.CalculateAsync(loan, pays, null, cancellationToken);
+        return (await ToDetail(loan, updatedSnap, cancellationToken), ToCollateralTransactionDto(txn));
+    }
+
+    private static LoanCollateralTransactionDto ToCollateralTransactionDto(LoanCollateralTransaction txn) =>
+        new(txn.Id,
+            txn.LoanId,
+            txn.TransactionType.ToString(),
+            txn.AmountBtc,
+            txn.BtcPriceAtTime,
+            txn.CollateralAmountBtcBefore,
+            txn.CollateralAmountBtcAfter,
+            txn.LtvAtTime,
+            txn.TransactionDate,
+            txn.Notes,
+            txn.CreatedAt);
 
     /// <summary>
     /// Reconstructs the loan balance as it was on a specific historical date.

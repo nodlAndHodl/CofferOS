@@ -136,6 +136,14 @@ public interface ICostBasisRepository
     void Remove(CostBasisEntry entry);
 }
 
+/// <summary>Read/write access to loan collateral transactions (add/remove collateral events).</summary>
+public interface ILoanCollateralTransactionRepository
+{
+    Task<IReadOnlyList<LoanCollateralTransaction>> GetByLoanAsync(Guid loanId, CancellationToken cancellationToken = default);
+    Task AddAsync(LoanCollateralTransaction transaction, CancellationToken cancellationToken = default);
+    void Remove(LoanCollateralTransaction transaction);
+}
+
 /// <summary>Transactional boundary. Committing also dispatches buffered domain events.</summary>
 public interface IUnitOfWork
 {

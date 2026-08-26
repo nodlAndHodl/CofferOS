@@ -136,3 +136,10 @@ public enum RetirementAccountType
     Roth401k = 6,
     Other = 7
 }
+
+/// <summary>Whether collateral was added to or removed from a loan.</summary>
+public enum CollateralTransactionType
+{
+    Added = 0,
+    Removed = 1
+}
